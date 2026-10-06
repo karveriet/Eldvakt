@@ -7,8 +7,7 @@ import type {
   SelfState,
   ServerMessage,
 } from '../shared/protocol.ts'
-import { getView, travelTo } from '../scene/view-store.ts'
-import { VIEW_ARRIVE } from '../fire/view-distance.ts'
+import { getView, settleBy, stepAway } from '../scene/view-store.ts'
 
 export type Greeting = { id: number; fireId: string; intensity: number }
 
@@ -109,11 +108,27 @@ function publish() {
 }
 
 function react(happened: Happened | undefined, message: ServerMessage) {
-  if (!happened) return
-  if (happened.kind === 'lit' && message.self.hostedFireId === happened.fireId) {
-    const fire = message.fires.find((item) => item.id === happened.fireId)
-    if (fire) travelTo(fire.lat, fire.lon, VIEW_ARRIVE, fire.id)
+  if (!happened) {
+    const seatedId = message.self.seatedFireId
+    const view = getView()
+    if (seatedId && view.seat < 0.05 && !view.traveling) {
+      const fire = message.fires.find((item) => item.id === seatedId)
+      if (fire) settleBy(fire.lat, fire.lon, fire.id)
+    }
+    return
   }
+  const arrived =
+    (happened.kind === 'lit' && message.self.hostedFireId === happened.fireId) ||
+    (happened.kind === 'sat' && message.self.seatedFireId === happened.fireId)
+  if (arrived) {
+    const fire = message.fires.find((item) => item.id === happened.fireId)
+    if (fire) settleBy(fire.lat, fire.lon, fire.id)
+  }
+  const stoodUp =
+    (happened.kind === 'left' || happened.kind === 'died' || happened.kind === 'extinguished') &&
+    message.self.seatedFireId == null &&
+    getView().seat > 0.02
+  if (stoodUp) stepAway()
   const seatedHere = message.self.seatedFireId === happened.fireId
   const watching = getView().focusId === happened.fireId
   const present = seatedHere || watching

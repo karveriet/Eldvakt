@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import { companyScale, timeStrength, visualScale } from '../fire/rules.ts'
 import { clusterByDistance, mergeDistanceKm } from '../fire/cluster.ts'
 import { closeness } from '../fire/view-distance.ts'
+import { LOCAL_AT, globeDistance } from '../geo/seat.ts'
+import { FLAME_FRAG, FLAME_VERT } from './flame-shader.ts'
 import { assignFans, displayLatLon } from '../geo/display.ts'
 import { latLonToVector } from '../geo/sphere.ts'
 import { hearthAudio } from '../audio/hearth.ts'
@@ -21,44 +23,6 @@ export type PickTarget = {
 }
 
 export const pickTargets: PickTarget[] = []
-
-const FLAME_VERT = /* glsl */ `
-  uniform float uTime;
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    vec3 p = position;
-    float sway = sin(uTime * 2.3 + position.y * 6.0) * 0.05 * position.y * position.y;
-    p.x += sway;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-  }
-`
-
-const FLAME_FRAG = /* glsl */ `
-  uniform float uTime;
-  uniform float uStrength;
-  varying vec2 vUv;
-  void main() {
-    float flicker = 0.9 + 0.1 * sin(uTime * 12.0 + vUv.y * 9.0);
-    float n = sin(vUv.y * 16.0 - uTime * 5.5) * 0.05 + sin(vUv.y * 34.0 - uTime * 11.0) * 0.025;
-    float width = mix(0.32, 0.06, pow(vUv.y, 0.62));
-    float x = abs(vUv.x - 0.5 + n * vUv.y);
-    float body = smoothstep(width, width * 0.15, x);
-    float tip = smoothstep(1.0, 0.08, vUv.y);
-    float base = smoothstep(0.0, 0.04, vUv.y);
-    float alpha = pow(body * tip * base, 0.72) * uStrength;
-    vec3 ember = vec3(0.82, 0.2, 0.04);
-    vec3 amber = vec3(1.0, 0.52, 0.09);
-    vec3 gold = vec3(1.0, 0.78, 0.32);
-    vec3 col = mix(ember, amber, smoothstep(0.0, 0.42, vUv.y));
-    col = mix(col, gold, smoothstep(0.35, 0.92, vUv.y));
-    float core = smoothstep(width * 0.5, 0.0, x) * smoothstep(0.72, 0.0, vUv.y);
-    col = mix(col, vec3(1.0, 0.74, 0.28), core * 0.5);
-    alpha = min(alpha, 0.42);
-    if (alpha < 0.02) discard;
-    gl_FragColor = vec4(col * flicker, alpha);
-  }
-`
 
 type Spark = {
   x: number
@@ -199,6 +163,22 @@ export class HearthLayer {
     hearthAudio.setStrength(loud)
     hearthAudio.tick(dt)
 
+    if (view.seat >= LOCAL_AT) {
+      this.glows.forEach((sprite) => {
+        sprite.visible = false
+      })
+      this.flames.forEach((slot) => {
+        slot.pivot.visible = false
+      })
+      this.sparkPoints.visible = false
+      return
+    }
+    this.sparkPoints.visible = true
+
+    const approach = Math.min(1, view.seat / LOCAL_AT)
+    const gap = Math.max(0.05, globeDistance(view.distance, view.seat) - 1)
+    const angular = 0.38 + approach * 0.55
+
     this.glows.forEach((sprite) => {
       sprite.visible = false
     })
@@ -240,7 +220,9 @@ export class HearthLayer {
         const slot = this.flames[index]
         if (!slot) return
         const hero = view.focusId === fire.id
-        const size = (hero ? 1.45 : 0.48) * Math.max(0.28, fire.weight)
+        const orbitSize = (hero ? 1.45 : 0.48) * Math.max(0.28, fire.weight)
+        const size = approach > 0.02 ? Math.min(orbitSize, angular * gap) : orbitSize
+        const other = view.focusId && view.focusId !== fire.id ? 1 - approach : 1
         const position = latLonToVector(fire.shown.lat, fire.shown.lon, 1.004)
         this.normal.set(position.x, position.y, position.z).normalize()
         slot.pivot.position.copy(this.normal).multiplyScalar(1.004)
@@ -249,7 +231,7 @@ export class HearthLayer {
         const pool = 0.46 / Math.max(size, 0.2)
         slot.disc.scale.set(pool, pool, 1)
         slot.pivot.visible = true
-        const strength = flameOpacity * (1.15 + 0.25 * Math.min(1, fire.weight))
+        const strength = flameOpacity * (1.15 + 0.25 * Math.min(1, fire.weight)) * other
         for (const uniform of slot.uniforms) {
           uniform.uTime.value += dt * (hero ? 1 : 0.8)
           uniform.uStrength.value = strength

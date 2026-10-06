@@ -1,10 +1,23 @@
+import { useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { LOCAL_AT } from '../geo/seat.ts'
+import { getView } from './view-store.ts'
 
 const stars = createStars()
 
 export function Stars() {
+  const points = useRef<THREE.Points>(null)
+  useFrame(() => {
+    const local = getView().seat >= LOCAL_AT
+    const mesh = points.current
+    if (!mesh) return
+    mesh.scale.setScalar(local ? 8 : 1)
+    const material = mesh.material
+    if (material instanceof THREE.PointsMaterial) material.size = local ? 1.6 : 0.07
+  })
   return (
-    <points geometry={stars}>
+    <points ref={points} geometry={stars}>
       <pointsMaterial
         color="#ffe2ad"
         size={0.07}

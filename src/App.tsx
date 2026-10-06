@@ -26,7 +26,12 @@ export function App() {
       <Canvas
         camera={{ position: [3.4, 1.5, 1.6], fov: 46, near: 0.1, far: 80 }}
         dpr={[1, 1.6]}
-        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+        gl={{
+          antialias: true,
+          alpha: false,
+          logarithmicDepthBuffer: true,
+          powerPreference: 'high-performance',
+        }}
         onCreated={({ gl }) => {
           gl.setClearColor('#05060a')
           gl.toneMapping = THREE.NoToneMapping

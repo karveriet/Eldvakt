@@ -1,6 +1,6 @@
 /**
- * Camera distances that keep the world a round night planet.
- * Far enough to see stars around the limb. Never a street.
+ * Orbital camera distances. Far enough to see stars around the limb.
+ * Sitting down leaves this range and finishes beside the fire.
  */
 export const VIEW_FAR = 4.15
 export const VIEW_ARRIVE = 2.88
