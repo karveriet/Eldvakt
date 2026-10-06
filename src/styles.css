@@ -1,0 +1,136 @@
+:root {
+  color-scheme: dark;
+  --gold: #f0c27a;
+  --ink: rgba(16, 9, 6, 0.66);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: #05060a;
+  overflow: hidden;
+}
+
+#root {
+  position: relative;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+.veil {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 42%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+.ember-dot {
+  position: fixed;
+  z-index: 2;
+  top: calc(16px + env(safe-area-inset-top));
+  left: 16px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8a5a32;
+  opacity: 0.35;
+}
+
+.ember-dot.on {
+  background: #f0b56a;
+  opacity: 0.95;
+  box-shadow: 0 0 12px #e39a45;
+}
+
+.bar {
+  position: fixed;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 18px;
+  padding: 22px 18px calc(24px + env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.bar button,
+.motion {
+  pointer-events: auto;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 1px solid rgba(240, 194, 122, 0.38);
+  background: var(--ink);
+  color: var(--gold);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 22px rgba(180, 80, 16, 0.16);
+}
+
+.bar button svg,
+.motion svg {
+  width: 30px;
+  height: 30px;
+}
+
+.bar button:active,
+.motion:active {
+  transform: scale(0.96);
+}
+
+.bar button.seeking {
+  animation: breathe 1.1s ease-in-out infinite;
+}
+
+.bar button.cover {
+  background:
+    radial-gradient(circle at center, rgba(16, 9, 6, 0.92) 62%, transparent 64%),
+    conic-gradient(#f0c27a calc(var(--p, 0) * 1turn), rgba(16, 9, 6, 0.66) 0);
+}
+
+@keyframes breathe {
+  50% {
+    box-shadow: 0 0 28px rgba(240, 176, 80, 0.75);
+  }
+}
+
+.motion {
+  position: fixed;
+  z-index: 2;
+  top: calc(12px + env(safe-area-inset-top));
+  right: 12px;
+  width: 48px;
+  height: 48px;
+}
+
+.motion svg {
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 700px) {
+  .bar {
+    gap: 14px;
+  }
+
+  .bar button {
+    width: 62px;
+    height: 62px;
+  }
+}

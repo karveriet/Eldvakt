@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "erasableSyntaxOnly": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "server/**/*.ts",
+    "src/fire/rules.ts",
+    "src/fire/rules.test.ts",
+    "src/fire/cluster.ts",
+    "src/fire/cluster.test.ts",
+    "src/fire/view-distance.ts",
+    "src/geo/cell.ts",
+    "src/geo/cell.test.ts",
+    "src/geo/sphere.ts",
+    "src/geo/sphere.test.ts",
+    "src/geo/display.ts",
+    "src/geo/display.test.ts",
+    "src/shared/**/*.ts"
+  ]
+}
