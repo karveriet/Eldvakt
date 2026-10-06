@@ -7,10 +7,10 @@ export function Stars() {
     <points geometry={stars}>
       <pointsMaterial
         color="#ffe2ad"
-        size={0.045}
+        size={0.07}
         sizeAttenuation
         transparent
-        opacity={0.85}
+        opacity={0.95}
         depthWrite={false}
       />
     </points>

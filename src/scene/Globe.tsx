@@ -22,15 +22,15 @@ const FRAG = /* glsl */ `
   varying vec3 vWorld;
   void main() {
     float land = texture2D(uLand, vUv).r;
-    vec3 ocean = vec3(0.012, 0.014, 0.020);
-    vec3 earth = vec3(0.058, 0.050, 0.042);
-    float coast = smoothstep(0.15, 0.85, land);
+    vec3 ocean = vec3(0.008, 0.010, 0.016);
+    vec3 earth = vec3(0.055, 0.046, 0.036);
+    float coast = smoothstep(0.2, 0.8, land);
     vec3 col = mix(ocean, earth, coast);
-    float shade = 0.006 * sin(vUv.x * 90.0 + vUv.y * 40.0);
-    col += shade;
+    float shade = 0.004 * sin(vUv.x * 70.0 + vUv.y * 36.0);
+    col += shade * coast;
     vec3 viewDir = normalize(cameraPosition - vWorld);
-    float fres = pow(1.0 - max(dot(normalize(vNormal), viewDir), 0.0), 2.4);
-    col += vec3(0.32, 0.14, 0.05) * fres * 0.55;
+    float fres = pow(1.0 - max(dot(normalize(vNormal), viewDir), 0.0), 2.6);
+    col += vec3(0.18, 0.08, 0.03) * fres * 0.28;
     gl_FragColor = vec4(col, 1.0);
   }
 `
@@ -41,7 +41,7 @@ const AIR_FRAG = /* glsl */ `
   void main() {
     vec3 viewDir = normalize(cameraPosition - vWorld);
     float fres = pow(1.0 - abs(dot(normalize(vNormal), viewDir)), 3.0);
-    gl_FragColor = vec4(0.62, 0.28, 0.08, fres * 0.45);
+    gl_FragColor = vec4(0.42, 0.18, 0.05, fres * 0.22);
   }
 `
 

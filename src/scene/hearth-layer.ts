@@ -41,20 +41,21 @@ const FLAME_FRAG = /* glsl */ `
   void main() {
     float flicker = 0.9 + 0.1 * sin(uTime * 12.0 + vUv.y * 9.0);
     float n = sin(vUv.y * 16.0 - uTime * 5.5) * 0.05 + sin(vUv.y * 34.0 - uTime * 11.0) * 0.025;
-    float width = mix(0.2, 0.035, pow(vUv.y, 0.72));
+    float width = mix(0.32, 0.06, pow(vUv.y, 0.62));
     float x = abs(vUv.x - 0.5 + n * vUv.y);
-    float body = smoothstep(width, width * 0.2, x);
-    float tip = smoothstep(1.0, 0.12, vUv.y);
-    float base = smoothstep(0.0, 0.05, vUv.y);
-    float alpha = body * tip * base * uStrength;
-    vec3 ember = vec3(0.78, 0.18, 0.04);
-    vec3 amber = vec3(1.0, 0.5, 0.08);
-    vec3 gold = vec3(1.0, 0.84, 0.42);
-    vec3 col = mix(ember, amber, smoothstep(0.0, 0.4, vUv.y));
-    col = mix(col, gold, smoothstep(0.28, 0.9, vUv.y));
-    float core = smoothstep(width * 0.45, 0.0, x) * smoothstep(0.75, 0.05, vUv.y);
-    col = mix(col, vec3(1.0, 0.93, 0.72), core * 0.9);
-    if (alpha < 0.015) discard;
+    float body = smoothstep(width, width * 0.15, x);
+    float tip = smoothstep(1.0, 0.08, vUv.y);
+    float base = smoothstep(0.0, 0.04, vUv.y);
+    float alpha = pow(body * tip * base, 0.72) * uStrength;
+    vec3 ember = vec3(0.82, 0.2, 0.04);
+    vec3 amber = vec3(1.0, 0.52, 0.09);
+    vec3 gold = vec3(1.0, 0.78, 0.32);
+    vec3 col = mix(ember, amber, smoothstep(0.0, 0.42, vUv.y));
+    col = mix(col, gold, smoothstep(0.35, 0.92, vUv.y));
+    float core = smoothstep(width * 0.5, 0.0, x) * smoothstep(0.72, 0.0, vUv.y);
+    col = mix(col, vec3(1.0, 0.74, 0.28), core * 0.5);
+    alpha = min(alpha, 0.42);
+    if (alpha < 0.02) discard;
     gl_FragColor = vec4(col * flicker, alpha);
   }
 `
@@ -239,14 +240,16 @@ export class HearthLayer {
         const slot = this.flames[index]
         if (!slot) return
         const hero = view.focusId === fire.id
-        const size = (hero ? 0.82 : 0.36) * Math.max(0.2, fire.weight)
+        const size = (hero ? 1.45 : 0.48) * Math.max(0.28, fire.weight)
         const position = latLonToVector(fire.shown.lat, fire.shown.lon, 1.004)
         this.normal.set(position.x, position.y, position.z).normalize()
         slot.pivot.position.copy(this.normal).multiplyScalar(1.004)
         slot.pivot.quaternion.setFromUnitVectors(UP, this.normal)
         slot.pivot.scale.setScalar(size)
+        const pool = 0.46 / Math.max(size, 0.2)
+        slot.disc.scale.set(pool, pool, 1)
         slot.pivot.visible = true
-        const strength = flameOpacity * (0.75 + 0.25 * Math.min(1, fire.weight))
+        const strength = flameOpacity * (1.15 + 0.25 * Math.min(1, fire.weight))
         for (const uniform of slot.uniforms) {
           uniform.uTime.value += dt * (hero ? 1 : 0.8)
           uniform.uStrength.value = strength
