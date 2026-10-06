@@ -9,7 +9,7 @@ export const LOCAL_AT = 0.36
 export const LOW_ORBIT = 1.12
 export const SIT_BACK_M = 3.1
 export const SIT_EYE_M = 1.02
-export const SIT_LOOK_M = 0.42
+export const SIT_LOOK_M = 0.7
 export const APPROACH_BACK_M = 12
 export const APPROACH_EYE_M = 3.8
 

@@ -21,9 +21,9 @@ const GROUND_FRAG = /* glsl */ `
     vec2 p = vUv * 2.0 - 1.0;
     float r = length(p);
     float meters = r * 400.0;
-    float pool = exp(-meters * meters / 70.0);
-    float wash = exp(-meters / 28.0);
-    vec3 col = uEarth + vec3(0.72, 0.28, 0.06) * pool + vec3(0.16, 0.05, 0.015) * wash;
+    float pool = exp(-meters * meters / 8.0);
+    float wash = exp(-meters * meters / 70.0);
+    vec3 col = uEarth + vec3(0.28, 0.08, 0.016) * pool + vec3(0.035, 0.012, 0.004) * wash;
     float fade = 1.0 - smoothstep(0.78, 1.0, r);
     gl_FragColor = vec4(col, fade);
   }
@@ -95,7 +95,7 @@ export function Beside() {
       new THREE.MeshBasicMaterial({
         color: new THREE.Color('#e07020'),
         transparent: true,
-        opacity: 0.55,
+        opacity: 0.32,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
       }),
@@ -144,7 +144,7 @@ export function Beside() {
     const weight = held.current?.weight ?? 0.8
     const height = 0.72 + 0.5 * Math.min(1.35, weight)
     flame.scale.setScalar(height)
-    advanceFlame(uniforms.current, dt, 0.85 + 0.35 * Math.min(1, weight))
+    advanceFlame(uniforms.current, dt, 0.55 + 0.2 * Math.min(1, weight))
     const focus = held.current
     if (focus) {
       scratch.current.set(0, height * 0.45, 0)

@@ -1,6 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { LOCAL_AT, intimateMeters, orbitApproach } from '../geo/seat.ts'
+import { LOCAL_AT, SIT_LOOK_M, intimateMeters, orbitApproach } from '../geo/seat.ts'
 import { globeSeat } from './globe-seat.ts'
 import { getView } from './view-store.ts'
 
@@ -52,7 +52,7 @@ function placeBeside(
   eye.set(0, eyeHeight, back)
   camera.position.copy(eye)
   camera.up.copy(worldUp)
-  dir.set(0, 0.42 - eyeHeight, -back)
+  dir.set(0, SIT_LOOK_M - eyeHeight, -back)
   if (dir.lengthSq() < 1e-6) dir.set(0, 0, -1)
   dir.normalize()
   dir.applyAxisAngle(worldUp, yaw)
