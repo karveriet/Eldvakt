@@ -8,7 +8,7 @@
     "build": "tsc -b && tsc -p tsconfig.server.json --noEmit && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "lint": "oxlint",
-    "test": "tsx --test src/fire/*.test.ts src/geo/*.test.ts server/*.test.ts",
+    "test": "tsx --test src/fire/*.test.ts src/geo/*.test.ts src/sky/*.test.ts server/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

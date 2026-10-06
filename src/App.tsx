@@ -35,6 +35,7 @@ export function App() {
         onCreated={({ gl }) => {
           gl.setClearColor('#05060a')
           gl.toneMapping = THREE.NoToneMapping
+          gl.localClippingEnabled = true
         }}
       >
         <Scene />
