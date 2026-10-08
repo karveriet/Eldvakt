@@ -83,7 +83,6 @@ export function Companions() {
     const t = state.clock.elapsedTime
     const turn = fire ? seed(fire.id) : 0
     const arrive = Math.min(1, Math.max(0, (view.seat - LOCAL_AT) / (1 - LOCAL_AT)))
-    const probe: { x: number; y: number; z: number; opacity: number }[] = []
 
     for (let i = 0; i < MAX; i++) {
       const soul = souls.current[i]
