@@ -11,6 +11,10 @@ const RING_M = 1.62
 const HOVER_M = 0.78
 /** Radians kept empty toward the camera (+Z) so lights sit off to the sides. */
 const CAMERA_GAP = 0.95
+/** Idle drift in meters — enough to read as floating, soft enough to stay calm. */
+const BOB_M = 0.14
+const SWAY_M = 0.11
+const DRIFT_M = 0.09
 
 type Soul = {
   sprite: THREE.Sprite
@@ -46,9 +50,9 @@ export function Companions() {
       list.push({
         sprite,
         phase: i * 1.618,
-        bob: 0.48 + (i % 4) * 0.05,
-        sway: 0.37 + (i % 5) * 0.04,
-        drift: 0.29 + (i % 3) * 0.05,
+        bob: 0.7 + (i % 4) * 0.08,
+        sway: 0.55 + (i % 5) * 0.06,
+        drift: 0.42 + (i % 3) * 0.07,
       })
     }
     souls.current = list
@@ -91,24 +95,24 @@ export function Companions() {
       // Each seated person is a soft star, kept off the camera line so they
       // hover to the side of the flame rather than between you and it.
       const angle = seatAngle(i, count, turn)
-      const floatX = Math.sin(t * soul.sway + soul.phase) * 0.055
-      const floatY = Math.sin(t * soul.bob + soul.phase * 1.31) * 0.07
-      const floatZ = Math.cos(t * soul.drift + soul.phase * 0.87) * 0.05
-      const radius = RING_M + floatX * 0.15
+      const floatX = Math.sin(t * soul.sway + soul.phase) * SWAY_M
+      const floatY = Math.sin(t * soul.bob + soul.phase * 1.31) * BOB_M
+      const floatZ = Math.cos(t * soul.drift + soul.phase * 0.87) * DRIFT_M
+      const radius = RING_M + floatX * 0.2
       sprite.position.set(
-        Math.sin(angle) * radius + floatX * 0.35,
+        Math.sin(angle) * radius + floatX * 0.45,
         HOVER_M + floatY,
         Math.cos(angle) * radius + floatZ,
       )
 
       const flicker =
-        0.68 +
-        0.2 * Math.sin(t * 4.7 + soul.phase) +
-        0.12 * Math.sin(t * 9.3 + soul.phase * 2.2)
-      const pulse = Math.max(0.4, Math.min(1, flicker))
+        0.62 +
+        0.24 * Math.sin(t * 3.4 + soul.phase) +
+        0.14 * Math.sin(t * 7.1 + soul.phase * 2.2)
+      const pulse = Math.max(0.35, Math.min(1, flicker))
       const material = sprite.material
       material.opacity = pulse * (0.55 + 0.45 * arrive)
-      sprite.scale.setScalar(0.09 + 0.045 * pulse)
+      sprite.scale.setScalar(0.1 + 0.055 * pulse)
       sprite.visible = true
     }
   })
