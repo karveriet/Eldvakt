@@ -83,6 +83,7 @@ export function Companions() {
     const t = state.clock.elapsedTime
     const turn = fire ? seed(fire.id) : 0
     const arrive = Math.min(1, Math.max(0, (view.seat - LOCAL_AT) / (1 - LOCAL_AT)))
+    const probe: { x: number; y: number; z: number; opacity: number }[] = []
 
     for (let i = 0; i < MAX; i++) {
       const soul = souls.current[i]
@@ -112,8 +113,23 @@ export function Companions() {
       const pulse = Math.max(0.35, Math.min(1, flicker))
       const material = sprite.material
       material.opacity = pulse * (0.55 + 0.45 * arrive)
-      sprite.scale.setScalar(0.1 + 0.055 * pulse)
+      sprite.scale.setScalar(0.14 + 0.07 * pulse)
       sprite.visible = true
+      probe.push({
+        x: sprite.position.x,
+        y: sprite.position.y,
+        z: sprite.position.z,
+        opacity: material.opacity,
+      })
+    }
+
+    if (import.meta.env.DEV) {
+      ;(window as unknown as { __companions?: unknown }).__companions = {
+        t,
+        seat: view.seat,
+        count,
+        probe,
+      }
     }
   })
 
