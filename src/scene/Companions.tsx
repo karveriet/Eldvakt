@@ -15,10 +15,12 @@ const CAMERA_GAP = 0.95
 const BOB_M = 0.07
 const SWAY_M = 0.055
 const DRIFT_M = 0.05
-/** A new visitor grows into place; a leaver softens away. */
 const FADE_IN_S = 1.45
-const FADE_OUT_S = 0.9
 const ANGLE_LERP = 2.2
+/** Leaving becomes a cheerful shooting star, not a fade. */
+const STREAK_S = 1.55
+const TRAIL_LEN = 14
+const TRAIL_POINTS = MAX * TRAIL_LEN
 
 type Soul = {
   sprite: THREE.Sprite
@@ -26,15 +28,26 @@ type Soul = {
   bob: number
   sway: number
   drift: number
-  /** 0 hidden → 1 fully present. */
+  /** 0 hidden → 1 fully present (seat only). */
   appear: number
   angle: number
   hasAngle: boolean
+  mode: 'seat' | 'streak'
+  streakT: number
+  x: number
+  y: number
+  z: number
+  vx: number
+  vy: number
+  vz: number
+  trail: number[]
 }
 
 export function Companions() {
   const root = useRef<THREE.Group>(null)
   const souls = useRef<Soul[]>([])
+  const trailPoints = useRef<THREE.Points>(null)
+  const trailPos = useRef(new Float32Array(TRAIL_POINTS * 3))
   const wasLocal = useRef(false)
   const prevCount = useRef(0)
   const prevFireId = useRef<string | null>(null)
@@ -67,14 +80,46 @@ export function Companions() {
         appear: 0,
         angle: 0,
         hasAngle: false,
+        mode: 'seat',
+        streakT: 0,
+        x: 0,
+        y: 0,
+        z: 0,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        trail: [],
       })
     }
     souls.current = list
+
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(trailPos.current, 3))
+    geometry.setDrawRange(0, 0)
+    const points = new THREE.Points(
+      geometry,
+      new THREE.PointsMaterial({
+        color: new THREE.Color('#fff1c8'),
+        size: 0.055,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        sizeAttenuation: true,
+        opacity: 0.85,
+      }),
+    )
+    points.renderOrder = 7
+    points.frustumCulled = false
+    group.add(points)
+    trailPoints.current = points
+
     return () => {
       for (const soul of list) {
         soul.sprite.material.dispose()
         group.remove(soul.sprite)
       }
+      points.geometry.dispose()
+      ;(points.material as THREE.Material).dispose()
       map.dispose()
       group.clear()
     }
@@ -90,11 +135,8 @@ export function Companions() {
       wasLocal.current = false
       prevCount.current = 0
       prevFireId.current = null
-      for (const soul of souls.current) {
-        soul.appear = 0
-        soul.hasAngle = false
-        soul.sprite.visible = false
-      }
+      for (const soul of souls.current) resetSoul(soul)
+      writeTrails(souls.current, trailPos.current, trailPoints.current)
       return
     }
 
@@ -108,17 +150,26 @@ export function Companions() {
     const justArrived = local && !wasLocal.current
     const fireChanged = fireId !== prevFireId.current
 
-    // Already-seated company is present when you sit down. Only later arrivals grow in.
     if (justArrived || fireChanged) {
       for (let i = 0; i < MAX; i++) {
         const soul = souls.current[i]
+        resetSoul(soul)
         soul.appear = i < count ? 1 : 0
-        soul.hasAngle = false
+        soul.mode = 'seat'
       }
     } else if (count > prevCount.current) {
       for (let i = prevCount.current; i < count; i++) {
-        souls.current[i].appear = 0
-        souls.current[i].hasAngle = false
+        const soul = souls.current[i]
+        if (soul.mode === 'streak') continue
+        soul.appear = 0
+        soul.hasAngle = false
+        soul.mode = 'seat'
+      }
+    } else if (count < prevCount.current) {
+      // Highest seats leave first — each becomes a shooting star.
+      for (let i = count; i < prevCount.current; i++) {
+        const soul = souls.current[i]
+        if (soul.mode === 'seat' && soul.appear > 0.15) launchStreak(soul)
       }
     }
 
@@ -129,17 +180,21 @@ export function Companions() {
     for (let i = 0; i < MAX; i++) {
       const soul = souls.current[i]
       const sprite = soul.sprite
-      const wanted = Boolean(fire) && i < count
+      const wanted = Boolean(fire) && i < count && soul.mode === 'seat'
+
+      if (soul.mode === 'streak') {
+        stepStreak(soul, sprite, dt)
+        continue
+      }
 
       if (wanted) {
         soul.appear = Math.min(1, soul.appear + dt / FADE_IN_S)
       } else if (soul.appear > 0) {
-        soul.appear = Math.max(0, soul.appear - dt / FADE_OUT_S)
-      }
-
-      if (soul.appear <= 0.001) {
-        soul.appear = 0
-        soul.hasAngle = false
+        // Unexpected drop (e.g. fire gone): still leave as a star.
+        launchStreak(soul)
+        stepStreak(soul, sprite, dt)
+        continue
+      } else {
         sprite.visible = false
         continue
       }
@@ -157,11 +212,10 @@ export function Companions() {
       const floatY = Math.sin(t * soul.bob + soul.phase * 1.31) * BOB_M
       const floatZ = Math.cos(t * soul.drift + soul.phase * 0.87) * DRIFT_M
       const radius = RING_M + floatX * 0.15
-      sprite.position.set(
-        Math.sin(soul.angle) * radius + floatX * 0.35,
-        HOVER_M + floatY,
-        Math.cos(soul.angle) * radius + floatZ,
-      )
+      soul.x = Math.sin(soul.angle) * radius + floatX * 0.35
+      soul.y = HOVER_M + floatY
+      soul.z = Math.cos(soul.angle) * radius + floatZ
+      sprite.position.set(soul.x, soul.y, soul.z)
 
       const flicker =
         0.68 +
@@ -169,15 +223,95 @@ export function Companions() {
         0.12 * Math.sin(t * 9.3 + soul.phase * 2.2)
       const pulse = Math.max(0.4, Math.min(1, flicker))
       const material = sprite.material
-      // Grow from a seed of light, then settle into the calm idle size.
+      material.color.set('#ffe4b5')
       const grow = 0.12 + 0.88 * born
       material.opacity = pulse * (0.55 + 0.45 * arrive) * born
       sprite.scale.setScalar((0.09 + 0.045 * pulse) * grow)
       sprite.visible = true
     }
+
+    writeTrails(souls.current, trailPos.current, trailPoints.current)
   })
 
   return <group ref={root} visible={false} />
+}
+
+function resetSoul(soul: Soul) {
+  soul.appear = 0
+  soul.hasAngle = false
+  soul.mode = 'seat'
+  soul.streakT = 0
+  soul.trail.length = 0
+  soul.sprite.visible = false
+}
+
+function launchStreak(soul: Soul) {
+  soul.mode = 'streak'
+  soul.streakT = 0
+  soul.appear = 0
+  soul.hasAngle = false
+  soul.trail = [soul.x, soul.y, soul.z]
+  // Cheerful arc: mostly up, a little sideways — like a wink, not a goodbye.
+  const fling = 0.7 + Math.random() * 0.6
+  soul.vx = (Math.random() - 0.5) * 3.2 * fling
+  soul.vy = (10.5 + Math.random() * 4.5) * fling
+  soul.vz = ((Math.random() - 0.5) * 2.4 - 0.8) * fling
+  const material = soul.sprite.material
+  material.color.set('#fff6d0')
+  material.opacity = 1
+  soul.sprite.scale.setScalar(0.13)
+  soul.sprite.visible = true
+}
+
+function stepStreak(soul: Soul, sprite: THREE.Sprite, dt: number) {
+  soul.streakT += dt
+  const u = soul.streakT / STREAK_S
+  if (u >= 1) {
+    resetSoul(soul)
+    return
+  }
+
+  soul.vx *= 0.992
+  soul.vy *= 0.985
+  soul.vz *= 0.992
+  soul.x += soul.vx * dt
+  soul.y += soul.vy * dt
+  soul.z += soul.vz * dt
+  sprite.position.set(soul.x, soul.y, soul.z)
+
+  soul.trail.push(soul.x, soul.y, soul.z)
+  const max = TRAIL_LEN * 3
+  if (soul.trail.length > max) soul.trail.splice(0, soul.trail.length - max)
+
+  const life = 1 - smootherstep(u)
+  const material = sprite.material
+  material.opacity = 0.35 + 0.65 * life
+  // Brighten and slim a touch as it becomes a star.
+  sprite.scale.setScalar(0.07 + 0.08 * life)
+  sprite.visible = true
+}
+
+function writeTrails(
+  souls: Soul[],
+  positions: Float32Array,
+  points: THREE.Points | null,
+) {
+  let wrote = 0
+  for (const soul of souls) {
+    if (soul.mode !== 'streak') continue
+    const trail = soul.trail
+    for (let i = 0; i < trail.length; i += 3) {
+      if (wrote >= TRAIL_POINTS) break
+      positions[wrote * 3] = trail[i]
+      positions[wrote * 3 + 1] = trail[i + 1]
+      positions[wrote * 3 + 2] = trail[i + 2]
+      wrote += 1
+    }
+  }
+  if (!points) return
+  points.geometry.setDrawRange(0, wrote)
+  points.geometry.attributes.position.needsUpdate = true
+  points.visible = wrote > 0
 }
 
 /**
@@ -205,7 +339,7 @@ function smootherstep(t: number): number {
 function seed(id: string): number {
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0
-  return ((hash >>> 0) % 1000) / 1000 * 0.35 - 0.175
+  return (((hash >>> 0) % 1000) / 1000) * 0.35 - 0.175
 }
 
 function starTexture() {
