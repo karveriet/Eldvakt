@@ -1,6 +1,7 @@
 import { useFrame } from '@react-three/fiber'
 import { Beside } from './Beside.tsx'
 import { CameraRig } from './CameraRig.tsx'
+import { Companions } from './Companions.tsx'
 import { Globe } from './Globe.tsx'
 import { Hearths } from './Hearths.tsx'
 import { Look } from './Look.tsx'
@@ -16,6 +17,7 @@ export function Scene() {
       <Globe />
       <Hearths />
       <Beside />
+      <Companions />
       <CameraRig />
       <Look />
     </>
