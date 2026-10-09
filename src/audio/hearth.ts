@@ -1,12 +1,14 @@
+import { sharedAudio } from './context.ts'
+
 /** Soft hearth sounds. Gains stay low: a crackle, a tone, a muted thud. */
 export class HearthAudio {
-  private ctx: AudioContext | null = null
   private timer = 0
   private strength = 0
+  private open = false
 
   unlock() {
-    const ctx = this.ensure()
-    if (ctx.state === 'suspended') void ctx.resume()
+    this.open = true
+    sharedAudio()
   }
 
   setStrength(strength: number) {
@@ -14,7 +16,7 @@ export class HearthAudio {
   }
 
   tick(dt: number) {
-    if (!this.ctx || this.strength < 0.03) return
+    if (!this.open || this.strength < 0.03) return
     this.timer -= dt
     if (this.timer > 0) return
     this.timer = 0.045 + (1.2 - Math.min(this.strength, 1.2)) * 0.22 + Math.random() * 0.1
@@ -23,7 +25,7 @@ export class HearthAudio {
 
   /** Someone sat down. */
   sit() {
-    const ctx = this.ensure()
+    const ctx = sharedAudio()
     const now = ctx.currentTime
     for (const frequency of [392, 587.33]) {
       const osc = ctx.createOscillator()
@@ -42,7 +44,7 @@ export class HearthAudio {
 
   /** A log catches. */
   log() {
-    const ctx = this.ensure()
+    const ctx = sharedAudio()
     const now = ctx.currentTime
     const osc = ctx.createOscillator()
     osc.type = 'sine'
@@ -81,8 +83,7 @@ export class HearthAudio {
   }
 
   private pop() {
-    const ctx = this.ctx
-    if (!ctx) return
+    const ctx = sharedAudio()
     const duration = 0.025 + Math.random() * 0.04
     const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * duration), ctx.sampleRate)
     const data = buffer.getChannelData(0)
@@ -102,12 +103,6 @@ export class HearthAudio {
     filter.connect(gain)
     gain.connect(ctx.destination)
     source.start()
-  }
-
-  private ensure() {
-    if (!this.ctx) this.ctx = new AudioContext()
-    if (this.ctx.state === 'suspended') void this.ctx.resume()
-    return this.ctx
   }
 }
 

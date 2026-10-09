@@ -130,9 +130,7 @@ function react(happened: Happened | undefined, message: ServerMessage) {
     getView().seat > 0.02
   if (stoodUp) stepAway()
   const seatedHere = message.self.seatedFireId === happened.fireId
-  const watching = getView().focusId === happened.fireId
-  const present = seatedHere || watching
-  if (happened.kind === 'sat' && present) hearthAudio.sit()
-  if ((happened.kind === 'log' || happened.kind === 'lit') && present) hearthAudio.log()
+  if (happened.kind === 'sat' && seatedHere) hearthAudio.sit()
+  if ((happened.kind === 'log' || happened.kind === 'lit') && seatedHere) hearthAudio.log()
   if (seatedHere && (happened.kind === 'sat' || happened.kind === 'log' || happened.kind === 'lit')) pulse()
 }
