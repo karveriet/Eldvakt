@@ -2,13 +2,15 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { normalizeLon } from '../geo/cell.ts'
 import { angularDistance } from '../geo/sphere.ts'
-import { VIEW_FAR, VIEW_MAX, VIEW_MIN } from '../fire/view-distance.ts'
+import { VIEW_FAR, VIEW_MAX, VIEW_MIN, VIEW_WHOLE } from '../fire/view-distance.ts'
+import { SIDEREAL_DEG_PER_HOUR, SIDEREAL_DEG_PER_SEC } from '../sky/place.ts'
 import {
   beginOrbitGrab,
   flingOrbit,
   flingTwist,
   getView,
   nudge,
+  releaseOrbitGrab,
   resetOrbitFrame,
   tickView,
   travelTo,
@@ -85,7 +87,10 @@ describe('orbit view', () => {
     const settledLon = getView().lon
     tickView(t0 + 32 + 241 * 16)
     assert.ok(Math.abs(getView().lat - settledLat) < 1e-6)
-    assert.ok(Math.abs(normalizeLon(getView().lon - settledLon)) < 1e-6)
+    // Flick coast is done; only the slow sidereal idle turn still walks longitude.
+    const dLon = Math.abs(normalizeLon(getView().lon - settledLon))
+    assert.ok(dLon < 0.002)
+    assert.ok(Math.abs(dLon - SIDEREAL_DEG_PER_SEC * 0.016) < 1e-6)
   })
 
   it('does not reverse a northward fling when crossing the pole', () => {
@@ -198,6 +203,40 @@ describe('orbit view', () => {
       before.orbitUp!.y * after.orbitUp!.y +
       before.orbitUp!.z * after.orbitUp!.z
     assert.ok(d > 0.98, `full turn should restore camera-up: dot=${d}`)
+  })
+
+  it('turns the whole globe west-to-east at the sidereal rate when idle', () => {
+    hardLook(20, 40)
+    assert.ok(getView().distance >= VIEW_WHOLE)
+    assert.ok(SIDEREAL_DEG_PER_HOUR > 15 && SIDEREAL_DEG_PER_HOUR < 15.1)
+    const startLon = getView().lon
+    const t0 = 8_000_000
+    tickView(t0)
+    const seconds = 120
+    for (let i = 1; i <= seconds * 20; i++) tickView(t0 + i * 50)
+    const turned = normalizeLon(startLon - getView().lon)
+    const expect = SIDEREAL_DEG_PER_SEC * seconds
+    assert.ok(Math.abs(turned - expect) < 0.05, `turned ${turned}, expect ${expect}`)
+  })
+
+  it('holds the surface still near the ground and while a grab is held', () => {
+    hardLook(10, 0)
+    travelTo(10, 0, 1.2, null, 0)
+    const t0 = 9_000_000
+    tickView(t0)
+    tickView(t0 + 60_000)
+    const lowLon = getView().lon
+    for (let i = 1; i <= 400; i++) tickView(t0 + 60_000 + i * 50)
+    assert.ok(Math.abs(normalizeLon(getView().lon - lowLon)) < 1e-9)
+
+    hardLook(15, 25)
+    beginOrbitGrab()
+    const heldLon = getView().lon
+    const t1 = 10_000_000
+    tickView(t1)
+    for (let i = 1; i <= 400; i++) tickView(t1 + i * 50)
+    assert.ok(Math.abs(normalizeLon(getView().lon - heldLon)) < 1e-9)
+    releaseOrbitGrab()
   })
 
   it('pinches altitude continuously down to a few meters', () => {

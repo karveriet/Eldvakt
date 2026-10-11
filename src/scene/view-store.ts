@@ -9,7 +9,9 @@ import {
   VIEW_MAX,
   VIEW_MIN,
   VIEW_SIT_ZOOM,
+  VIEW_WHOLE,
 } from '../fire/view-distance.ts'
+import { SIDEREAL_DEG_PER_SEC } from '../sky/place.ts'
 
 export type View = { lat: number; lon: number; distance: number }
 
@@ -55,6 +57,8 @@ let haveRight = false
  * re-snap to world-north — that snap is what makes a pole-crossing flick reverse.
  */
 let orbitUp: { x: number; y: number; z: number } | null = null
+/** True while a finger is down on the orbit view — sidereal turn waits. */
+let orbitHeld = false
 
 /** Exponential friction; higher = stops sooner. */
 const SPIN_DECAY = 1.85
@@ -111,6 +115,7 @@ export function travelTo(
   seatTo = 0,
 ) {
   stopOrbitSpin()
+  orbitHeld = false
   haveRight = false
   orbitUp = null
   const from = { lat: state.lat, lon: state.lon, distance: state.distance }
@@ -215,6 +220,7 @@ export function resetOrbitFrame() {
   haveRight = false
   lastRight = { x: 0, y: 0, z: 1 }
   orbitUp = null
+  orbitHeld = false
   stopOrbitSpin()
 }
 
@@ -224,6 +230,7 @@ export function resetOrbitFrame() {
  */
 export function beginOrbitGrab() {
   stopOrbitSpin()
+  orbitHeld = true
   const pos = latLonToVector(state.lat, state.lon, 1)
   if (!orbitUp) {
     haveRight = false
@@ -239,6 +246,11 @@ export function beginOrbitGrab() {
   lastRight = normalize(right)
   orbitUp = normalize(cross(pos, lastRight))
   haveRight = true
+}
+
+/** Finger lifted — sidereal turn may resume once coasting also settles. */
+export function releaseOrbitGrab() {
+  orbitHeld = false
 }
 
 export function setGaze(yaw: number, pitch: number) {
@@ -357,6 +369,11 @@ export function tickView(now: number) {
     if (spinSpeed < SPIN_STOP) stopOrbitSpin()
   }
 
+  // Whole-globe idle: real sidereal turn (west→east). Pauses for drag/coast/close-up.
+  if (dt > 0 && canSiderealTurn()) {
+    applySiderealTurn(SIDEREAL_DEG_PER_SEC * dt)
+  }
+
   const anim = state.anim
   if (!anim) return
   const raw = (now - anim.start) / anim.dur
@@ -375,6 +392,35 @@ export function tickView(now: number) {
     state.traveling = false
     state.anim = null
     publish()
+  }
+}
+
+function canSiderealTurn() {
+  if (state.traveling || orbitHeld) return false
+  if (state.seat > 0.02) return false
+  if (state.distance < VIEW_WHOLE) return false
+  if (spinAxis && spinSpeed > SPIN_STOP) return false
+  if (Math.abs(twistSpeed) > SPIN_STOP) return false
+  return true
+}
+
+/**
+ * Walk the look point westward so the fixed Earth mesh appears to rotate
+ * west→east (counterclockwise from above the north pole). Stars use GMST in
+ * the same Earth frame, so the sky stays locked to the ground.
+ */
+function applySiderealTurn(degrees: number) {
+  if (!Number.isFinite(degrees) || Math.abs(degrees) < 1e-12) return
+  state.lon = normalizeLon(state.lon - degrees)
+  if (!orbitUp && !haveRight) return
+  const angle = (-degrees * Math.PI) / 180
+  if (haveRight) {
+    lastRight = normalize(projectPerp(rotateAround(lastRight, WORLD_UP, angle), latLonToVector(state.lat, state.lon, 1)))
+  }
+  if (orbitUp) {
+    const pos = latLonToVector(state.lat, state.lon, 1)
+    orbitUp = normalize(projectPerp(rotateAround(orbitUp, WORLD_UP, angle), pos))
+    if (lengthSq(orbitUp) < 1e-10) orbitUp = null
   }
 }
 

@@ -15,6 +15,7 @@ import {
   flingTwist,
   getView,
   nudge,
+  releaseOrbitGrab,
   settleBy,
   stopOrbitSpin,
   twistOrbit,
@@ -189,24 +190,27 @@ export function Look() {
         pinchAngle = Number.NaN
         velTwist = 0
       }
-      if (!down || event.pointerId !== down.pointerId) return
-      if (holding && gesture.holdFireId) {
-        const intensity = Math.max(0, Math.min(1, (performance.now() - gesture.holdStarted) / 1400))
-        gesture.holdFireId = null
-        if (intensity >= 0.08) send({ type: 'greet', intensity })
-      } else if (!dragging && !getView().traveling && !getRoomSnapshot().self.seatedFireId) {
-        const hit = pick(event.clientX, event.clientY)
-        if (hit && hit.members.length > 0) approachCluster(hit.lat, hit.lon, hit.radiusKm, hit.members)
-      } else if (dragging && getView().seat < LOCAL_AT && !getView().traveling) {
-        const age = performance.now() - lastMoveAt
-        if (age < 80) flingOrbit(velLat, velLon)
-        else stopOrbitSpin()
+      if (down && event.pointerId === down.pointerId) {
+        if (holding && gesture.holdFireId) {
+          const intensity = Math.max(0, Math.min(1, (performance.now() - gesture.holdStarted) / 1400))
+          gesture.holdFireId = null
+          if (intensity >= 0.08) send({ type: 'greet', intensity })
+        } else if (!dragging && !getView().traveling && !getRoomSnapshot().self.seatedFireId) {
+          const hit = pick(event.clientX, event.clientY)
+          if (hit && hit.members.length > 0) approachCluster(hit.lat, hit.lon, hit.radiusKm, hit.members)
+        } else if (dragging && getView().seat < LOCAL_AT && !getView().traveling) {
+          const age = performance.now() - lastMoveAt
+          if (age < 80) flingOrbit(velLat, velLon)
+          else stopOrbitSpin()
+        }
+        down = null
+        dragging = false
+        holding = false
+        velLat = 0
+        velLon = 0
       }
-      down = null
-      dragging = false
-      holding = false
-      velLat = 0
-      velLon = 0
+      // Sidereal turn resumes only when every finger is up (and coast has settled).
+      if (pinches.size === 0) releaseOrbitGrab()
     }
 
     el.addEventListener('pointerdown', onDown)

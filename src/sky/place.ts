@@ -1,5 +1,10 @@
 import { latLonToVector, type Vec3 } from '../geo/sphere.ts'
 
+/** Mean sidereal day (seconds). Earth turns ~15.041° per hour. */
+export const SIDEREAL_DAY_S = 86_164.0905
+export const SIDEREAL_DEG_PER_SEC = 360 / SIDEREAL_DAY_S
+export const SIDEREAL_DEG_PER_HOUR = SIDEREAL_DEG_PER_SEC * 3600
+
 /**
  * Greenwich mean sidereal time in degrees.
  * The common approximation at the given UTC instant.
