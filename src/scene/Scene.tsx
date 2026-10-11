@@ -6,6 +6,7 @@ import { Glints } from './Glints.tsx'
 import { Globe } from './Globe.tsx'
 import { Hearths } from './Hearths.tsx'
 import { Look } from './Look.tsx'
+import { Luminaries } from './Luminaries.tsx'
 import { Stars } from './Stars.tsx'
 import { tickView } from './view-store.ts'
 
@@ -16,6 +17,7 @@ export function Scene() {
       <ViewClock />
       <Aurora />
       <Stars />
+      <Luminaries />
       <Globe />
       <Hearths />
       <Beside />
