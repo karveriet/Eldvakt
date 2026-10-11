@@ -3,13 +3,13 @@ import { FALLBACK_POINT } from '../geo/locate.ts'
 import { settleBy } from '../scene/view-store.ts'
 
 /**
- * Experiment helper: open with ?demo=companions to sit beside a fire
- * without clicking through the globe. Lets us see the floating lights.
+ * Experiment helper: open with ?demo=companions or ?demo=glints to sit
+ * beside a fire without clicking through the globe.
  */
 export function bootCompanionDemo() {
   if (typeof location === 'undefined') return
-  if (!new URLSearchParams(location.search).has('demo')) return
-  if (new URLSearchParams(location.search).get('demo') !== 'companions') return
+  const demo = new URLSearchParams(location.search).get('demo')
+  if (demo !== 'companions' && demo !== 'glints') return
 
   const stopConnect = connectRoom()
   const started = performance.now()

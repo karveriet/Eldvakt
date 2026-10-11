@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { locate } from '../geo/locate.ts'
 import { getRoomSnapshot, send, subscribeRoom } from '../net/room.ts'
-import { enableMotion, motionNeedsGesture } from '../scene/motion.ts'
+import { enableMotion, motionListening, motionNeedsGesture } from '../scene/motion.ts'
 import { getViewUi, stepAway, subscribeView, travelTo } from '../scene/view-store.ts'
 import { VIEW_ARRIVE } from '../fire/view-distance.ts'
 
@@ -19,8 +19,15 @@ export function Controls() {
     void enableMotion()
   }, [motion])
 
+  // After sitting (or on a new HTTPS origin), offer motion again if it is not live yet.
+  const needsMotion =
+    motion ||
+    (window.matchMedia('(pointer: coarse)').matches &&
+      motionNeedsGesture() &&
+      !motionListening())
+
   if (view.traveling) {
-    return motion ? <MotionButton onGranted={() => setMotion(false)} /> : null
+    return needsMotion ? <MotionButton onGranted={() => setMotion(false)} /> : null
   }
 
   const seatedId = room.self.seatedFireId
@@ -32,7 +39,7 @@ export function Controls() {
 
   return (
     <>
-      {motion ? <MotionButton onGranted={() => setMotion(false)} /> : null}
+      {needsMotion ? <MotionButton onGranted={() => setMotion(false)} /> : null}
       <div className="bar">
         {seatedId ? (
           <>

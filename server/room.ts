@@ -141,11 +141,13 @@ export class Room {
     return dead
   }
 
-  publicFires(): PublicFire[] {
+  /** Per-viewer: glints omit the viewer's own tint so the night stays first-person. */
+  publicFires(viewerId?: string): PublicFire[] {
     const now = this.now()
     const list: PublicFire[] = []
     for (const fire of this.fires.values()) {
       if (!isAlive(fire, now)) continue
+      const others = viewerId ? fire.seated.filter((id) => id !== viewerId) : fire.seated
       list.push({
         id: fire.id,
         lat: fire.lat,
@@ -154,7 +156,7 @@ export class Room {
         fullUntil: fire.fullUntil,
         emptySince: fire.emptySince,
         seatedCount: fire.seated.length,
-        hues: fire.seated.map((userId) => this.hues.get(userId) ?? 0.08),
+        glints: others.map((userId) => this.hues.get(userId) ?? 0.08),
         litAt: fire.litAt,
       })
     }

@@ -5,8 +5,11 @@ export type PublicFire = ClockFields & {
   lat: number
   lon: number
   seatedCount: number
-  /** Anonymous tints for whoever is seated, in seat order. No ids. */
-  hues: number[]
+  /**
+   * Anonymous glint tints for other people at this fire (never your own).
+   * First person: you only see others. No device ids.
+   */
+  glints: number[]
   litAt: number
 }
 

@@ -53,13 +53,13 @@ export function bootKonamiVisitor() {
 
   async function summonGuest() {
     if (busy) {
-      whisper('vänta lite…')
+      whisper('wait a moment…')
       return
     }
 
     const fireId = resolveFireId()
     if (!fireId) {
-      whisper('sätt dig vid brasan först')
+      whisper('sit by a fire first')
       return
     }
 
@@ -78,7 +78,7 @@ export function bootKonamiVisitor() {
       busy = false
     }
 
-    whisper('en gäst är på väg')
+    whisper('a glint is arriving')
 
     ws.addEventListener('open', () => {
       ws.send(JSON.stringify({ type: 'hello', id, hue: Math.random() }))
@@ -99,7 +99,7 @@ export function bootKonamiVisitor() {
     })
 
     ws.addEventListener('error', () => {
-      whisper('kunde inte bjuda in')
+      whisper('could not invite')
       close()
     })
     ws.addEventListener('close', () => {

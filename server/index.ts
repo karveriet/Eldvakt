@@ -114,7 +114,7 @@ function worldFor(userId: string, happened?: Happened): ServerMessage {
   return {
     type: 'world',
     serverNow: Date.now(),
-    fires: room.publicFires(),
+    fires: room.publicFires(userId),
     self: room.self(userId),
     happened,
   }

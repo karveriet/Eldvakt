@@ -6,7 +6,7 @@ import { LOCAL_AT } from '../geo/seat.ts'
 import { getRoomSnapshot } from '../net/room.ts'
 import { getView } from './view-store.ts'
 
-/** Soft points of light for people sitting at a fire. Easy to draw, no body. */
+/** Other people's glints at a fire — first person, never your own. */
 const MAX = 12
 const RING_M = 1.62
 const HOVER_M = 0.78
@@ -47,7 +47,7 @@ type Soul = {
   trail: number[]
 }
 
-export function Companions() {
+export function Glints() {
   const root = useRef<THREE.Group>(null)
   const souls = useRef<Soul[]>([])
   const trailPoints = useRef<THREE.Points>(null)
@@ -167,8 +167,9 @@ export function Companions() {
 
     const room = getRoomSnapshot()
     const fire = room.fires.find((item) => item.id === view.focusId)
-    const hues = fire?.hues ?? []
-    const count = Math.min(MAX, fire?.seatedCount ?? 0)
+    // Server already omits your own tint — first person, only other glints.
+    const tints = fire?.glints ?? []
+    const count = Math.min(MAX, tints.length)
     const fireId = fire?.id ?? null
     const t = state.clock.elapsedTime
     const turn = fire ? seed(fire.id) : 0
@@ -182,7 +183,7 @@ export function Companions() {
         resetSoul(soul)
         soul.appear = i < count ? 1 : 0
         soul.mode = 'seat'
-        soul.tint = hues[i] ?? DEFAULT_TINT
+        soul.tint = tints[i] ?? DEFAULT_TINT
       }
     } else if (count > prevCount.current) {
       for (let i = prevCount.current; i < count; i++) {
@@ -191,7 +192,7 @@ export function Companions() {
         soul.appear = 0
         soul.hasAngle = false
         soul.mode = 'seat'
-        soul.tint = hues[i] ?? DEFAULT_TINT
+        soul.tint = tints[i] ?? DEFAULT_TINT
       }
     } else if (count < prevCount.current) {
       for (let i = count; i < prevCount.current; i++) {
@@ -207,7 +208,7 @@ export function Companions() {
     for (let i = 0; i < MAX; i++) {
       const soul = souls.current[i]
       const wanted = Boolean(fire) && i < count && soul.mode === 'seat'
-      if (wanted) soul.tint = hues[i] ?? soul.tint
+      if (wanted) soul.tint = tints[i] ?? soul.tint
 
       if (soul.mode === 'streak') {
         stepStreak(soul, dt)
@@ -381,7 +382,7 @@ function softTexture() {
   canvas.width = 64
   canvas.height = 64
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Could not draw a companion glow')
+  if (!ctx) throw new Error('Could not draw a glint glow')
   const glow = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
   glow.addColorStop(0, 'rgba(255, 255, 255, 1)')
   glow.addColorStop(0.2, 'rgba(255, 255, 255, 0.55)')
@@ -399,7 +400,7 @@ function hardTexture() {
   canvas.width = 64
   canvas.height = 64
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Could not draw a companion body')
+  if (!ctx) throw new Error('Could not draw a glint body')
   const body = ctx.createRadialGradient(32, 32, 0, 32, 32, 28)
   body.addColorStop(0, 'rgba(255, 255, 255, 1)')
   body.addColorStop(0.55, 'rgba(255, 255, 255, 1)')

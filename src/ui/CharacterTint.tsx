@@ -1,14 +1,14 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { hslToCss, tintToBody, tintToGlow, writeTint } from '../character/tint.ts'
 
-/** First visit: pick a continuous tint. No name — only a quiet prägel. */
+/** First visit: pick a continuous tint for your glint. No name — only light. */
 export function CharacterTint({ onChosen }: { onChosen: (tint: number) => void }) {
   const [tint, setTint] = useState(() => Math.random())
   const body = useMemo(() => tintToBody(tint), [tint])
   const glow = useMemo(() => tintToGlow(tint), [tint])
 
   return (
-    <div className="tint-gate" role="dialog" aria-label="Choose your light">
+    <div className="tint-gate" role="dialog" aria-label="Choose your glint">
       <div className="tint-sky" aria-hidden="true" />
       <div
         className="tint-preview"
@@ -30,7 +30,7 @@ export function CharacterTint({ onChosen }: { onChosen: (tint: number) => void }
           max={1}
           step="any"
           value={tint}
-          aria-label="Character color"
+          aria-label="Glint color"
           onChange={(event) => setTint(Number(event.target.value))}
         />
       </label>
