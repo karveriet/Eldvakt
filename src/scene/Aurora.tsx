@@ -4,52 +4,14 @@ import * as THREE from 'three'
 import { LOCAL_AT } from '../geo/seat.ts'
 import { getView } from './view-store.ts'
 
-const DOME_VERT = /* glsl */ `
-  #include <common>
-  #include <logdepthbuf_pars_vertex>
-  varying vec3 vDir;
-  void main() {
-    vDir = normalize(position);
-    vec4 world = modelMatrix * vec4(position, 1.0);
-    gl_Position = projectionMatrix * viewMatrix * world;
-    #include <logdepthbuf_vertex>
-  }
-`
-
-const DOME_FRAG = /* glsl */ `
-  #include <common>
-  #include <logdepthbuf_pars_fragment>
-  uniform float uTime;
-  uniform float uFade;
-  varying vec3 vDir;
-  void main() {
-    #include <logdepthbuf_fragment>
-    float elev = vDir.y;
-    float band = smoothstep(-0.35, 0.25, elev) * (1.0 - smoothstep(0.55, 0.95, elev));
-    // Cartesian waves avoid an atan() seam on the dome.
-    float wave =
-      0.5 +
-      0.5 * sin(vDir.x * 3.1 + uTime * 0.21 + elev * 3.4) *
-      sin(vDir.z * 2.4 - uTime * 0.13 + elev * 1.8);
-    float sheets = pow(max(wave, 0.0), 1.55) * band;
-    float veil = pow(max(0.0, elev + 0.25), 1.1) * 0.55;
-    vec3 green = vec3(0.22, 0.95, 0.48);
-    vec3 teal = vec3(0.12, 0.55, 0.72);
-    vec3 rose = vec3(0.62, 0.28, 0.42);
-    float mixT = smoothstep(0.0, 0.7, elev + 0.12 * sin(vDir.x * 2.2 + uTime * 0.09));
-    vec3 col = mix(green, teal, mixT);
-    col = mix(col, rose, smoothstep(0.4, 0.85, elev) * 0.4);
-    float alpha = (sheets * 0.85 + veil * 0.7) * uFade;
-    gl_FragColor = vec4(col * alpha, alpha);
-  }
-`
-
-const HALO_VERT = /* glsl */ `
+const VERT = /* glsl */ `
   #include <common>
   #include <logdepthbuf_pars_vertex>
   varying vec3 vNormal;
   varying vec3 vWorld;
+  varying vec3 vDir;
   void main() {
+    vDir = normalize(position);
     vNormal = normalize(mat3(modelMatrix) * normal);
     vec4 world = modelMatrix * vec4(position, 1.0);
     vWorld = world.xyz;
@@ -58,35 +20,56 @@ const HALO_VERT = /* glsl */ `
   }
 `
 
-const HALO_FRAG = /* glsl */ `
+const FRAG = /* glsl */ `
   #include <common>
   #include <logdepthbuf_pars_fragment>
   uniform float uFade;
   uniform float uTime;
   varying vec3 vNormal;
   varying vec3 vWorld;
+  varying vec3 vDir;
   void main() {
     #include <logdepthbuf_fragment>
     vec3 viewDir = normalize(cameraPosition - vWorld);
-    float fres = pow(1.0 - abs(dot(normalize(vNormal), viewDir)), 2.1);
-    float pulse = 0.85 + 0.15 * sin(uTime * 0.35);
-    vec3 col = mix(vec3(0.15, 0.72, 0.55), vec3(0.35, 0.55, 0.85), 0.35 + 0.2 * sin(uTime * 0.2));
-    float alpha = fres * 0.55 * pulse * uFade;
-    gl_FragColor = vec4(col * alpha, alpha);
+    float fres = pow(1.0 - abs(dot(normalize(vNormal), viewDir)), 2.35);
+
+    // Aurora curtains wander through the atmosphere shell (no outer dome).
+    float elev = vDir.y;
+    float band = smoothstep(-0.55, 0.15, elev) * (1.0 - smoothstep(0.45, 0.92, elev));
+    float wander =
+      0.5 +
+      0.5 * sin(vDir.x * 4.2 + uTime * 0.31 + elev * 5.0) *
+      sin(vDir.z * 3.3 - uTime * 0.22 + elev * 2.6 + vDir.x * 1.1);
+    float drift = 0.5 + 0.5 * sin(vDir.x * 1.7 + vDir.z * 2.1 + uTime * 0.09);
+    float sheets = pow(max(wander * (0.65 + 0.35 * drift), 0.0), 1.45) * band;
+
+    vec3 green = vec3(0.20, 0.95, 0.48);
+    vec3 teal = vec3(0.14, 0.58, 0.78);
+    vec3 rose = vec3(0.58, 0.26, 0.40);
+    vec3 warm = vec3(0.48, 0.22, 0.08);
+    float mixT = smoothstep(-0.1, 0.65, elev + 0.15 * sin(uTime * 0.07 + vDir.x * 2.0));
+    vec3 aurora = mix(green, teal, mixT);
+    aurora = mix(aurora, rose, smoothstep(0.35, 0.8, elev) * 0.35 * drift);
+
+    float air = fres * 0.28;
+    float glow = fres * sheets * 0.95;
+    vec3 col = warm * air + aurora * (glow + fres * 0.12 * band);
+    float alpha = (air + glow) * uFade;
+    gl_FragColor = vec4(col, alpha);
   }
 `
 
-/** Distant aurora wash + soft limb glow so the night globe reads on phones. */
+/** Atmosphere shell with a wandering aurora — orbit only. */
 export function Aurora() {
-  const domeMat = useMemo(
+  const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
         uniforms: {
           uTime: { value: 0 },
           uFade: { value: 1 },
         },
-        vertexShader: DOME_VERT,
-        fragmentShader: DOME_FRAG,
+        vertexShader: VERT,
+        fragmentShader: FRAG,
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
@@ -94,42 +77,19 @@ export function Aurora() {
       }),
     [],
   )
-  const haloMat = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        uniforms: {
-          uTime: { value: 0 },
-          uFade: { value: 1 },
-        },
-        vertexShader: HALO_VERT,
-        fragmentShader: HALO_FRAG,
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        side: THREE.BackSide,
-      }),
-    [],
-  )
-  const root = useRef<THREE.Group>(null)
+  const mesh = useRef<THREE.Mesh>(null)
 
   useFrame((_, dt) => {
     const view = getView()
     const fade = view.seat >= LOCAL_AT ? 0 : 1 - Math.min(1, view.seat / LOCAL_AT)
-    domeMat.uniforms.uTime.value += dt
-    haloMat.uniforms.uTime.value += dt
-    domeMat.uniforms.uFade.value = fade
-    haloMat.uniforms.uFade.value = fade
-    if (root.current) root.current.visible = fade > 0.02
+    material.uniforms.uTime.value += dt
+    material.uniforms.uFade.value = fade
+    if (mesh.current) mesh.current.visible = fade > 0.02
   })
 
   return (
-    <group ref={root}>
-      <mesh material={domeMat} frustumCulled={false}>
-        <sphereGeometry args={[18, 64, 48]} />
-      </mesh>
-      <mesh material={haloMat} scale={1.55} frustumCulled={false}>
-        <sphereGeometry args={[1, 64, 48]} />
-      </mesh>
-    </group>
+    <mesh ref={mesh} material={material} scale={1.055} frustumCulled={false}>
+      <sphereGeometry args={[1, 96, 72]} />
+    </mesh>
   )
 }

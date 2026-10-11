@@ -83,4 +83,39 @@ describe('orbit view', () => {
     assert.ok(Math.abs(getView().lat - settledLat) < 1e-6)
     assert.ok(Math.abs(normalizeLon(getView().lon - settledLon)) < 1e-6)
   })
+
+  it('does not reverse a northward fling when crossing the pole', () => {
+    hardLook(60, 0)
+    // Strong northward flick; fixed spin axis must keep crossing southward after the pole.
+    flingOrbit(900, 0)
+    const t0 = 3_000_000
+    tickView(t0)
+    const samples: { lat: number; lon: number }[] = []
+    for (let i = 1; i <= 80; i++) {
+      tickView(t0 + i * 16)
+      samples.push({ lat: getView().lat, lon: getView().lon })
+    }
+    // Find the step nearest the north pole, then the look point should continue
+    // onto the opposite hemisphere (lon ~±180) rather than bounce back.
+    let peak = 0
+    for (let i = 1; i < samples.length; i++) {
+      if (samples[i]!.lat > samples[peak]!.lat) peak = i
+    }
+    assert.ok(samples[peak]!.lat > 80, `peak lat ${samples[peak]!.lat}`)
+    const after = samples[Math.min(samples.length - 1, peak + 12)]!
+    assert.ok(after.lat < samples[peak]!.lat)
+    assert.ok(Math.abs(normalizeLon(after.lon - 0)) > 90)
+  })
+
+  it('keeps the same drag sense in the southern hemisphere', () => {
+    hardLook(-40, 30)
+    const before = getView()
+    nudge(6, 0)
+    assert.ok(getView().lat > before.lat, 'up-drag still moves north from the south')
+    hardLook(-40, 30)
+    const lon0 = getView().lon
+    nudge(0, 8)
+    // Positive yaw matches Look's -dx mapping used at fling time; just ensure motion.
+    assert.ok(Math.abs(normalizeLon(getView().lon - lon0)) > 0.5)
+  })
 })

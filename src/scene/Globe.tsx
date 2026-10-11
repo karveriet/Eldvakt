@@ -48,21 +48,6 @@ const FRAG = /* glsl */ `
   }
 `
 
-const AIR_FRAG = /* glsl */ `
-  #include <common>
-  #include <logdepthbuf_pars_fragment>
-  uniform float uSeat;
-  varying vec3 vNormal;
-  varying vec3 vWorld;
-  void main() {
-    #include <logdepthbuf_fragment>
-    vec3 viewDir = normalize(cameraPosition - vWorld);
-    float fres = pow(1.0 - abs(dot(normalize(vNormal), viewDir)), 2.8);
-    vec3 rim = mix(vec3(0.20, 0.55, 0.42), vec3(0.48, 0.22, 0.08), 0.45);
-    gl_FragColor = vec4(rim, fres * 0.32 * (1.0 - uSeat));
-  }
-`
-
 export function Globe() {
   const root = useRef<THREE.Group>(null)
   const texture = useMemo(() => createLandTexture(), [])
@@ -75,19 +60,6 @@ export function Globe() {
       }),
     [texture],
   )
-  const air = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        uniforms: { uSeat: globeSeat },
-        vertexShader: VERT,
-        fragmentShader: AIR_FRAG,
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        side: THREE.BackSide,
-      }),
-    [],
-  )
 
   useFrame(() => {
     if (root.current) root.current.visible = getView().seat < LOCAL_AT
@@ -97,9 +69,6 @@ export function Globe() {
     <group ref={root}>
       <mesh material={material}>
         <sphereGeometry args={[1, 128, 96]} />
-      </mesh>
-      <mesh material={air} scale={1.045}>
-        <sphereGeometry args={[1, 64, 48]} />
       </mesh>
     </group>
   )
