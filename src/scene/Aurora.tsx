@@ -26,17 +26,17 @@ const DOME_FRAG = /* glsl */ `
     #include <logdepthbuf_fragment>
     float elev = vDir.y;
     float band = smoothstep(-0.35, 0.25, elev) * (1.0 - smoothstep(0.55, 0.95, elev));
-    float lon = atan(vDir.z, vDir.x);
+    // Cartesian waves avoid an atan() seam on the dome.
     float wave =
       0.5 +
-      0.5 * sin(lon * 2.6 + uTime * 0.21 + elev * 3.4) *
-      sin(lon * 1.15 - uTime * 0.13 + elev * 1.8);
+      0.5 * sin(vDir.x * 3.1 + uTime * 0.21 + elev * 3.4) *
+      sin(vDir.z * 2.4 - uTime * 0.13 + elev * 1.8);
     float sheets = pow(max(wave, 0.0), 1.55) * band;
     float veil = pow(max(0.0, elev + 0.25), 1.1) * 0.55;
     vec3 green = vec3(0.22, 0.95, 0.48);
     vec3 teal = vec3(0.12, 0.55, 0.72);
     vec3 rose = vec3(0.62, 0.28, 0.42);
-    float mixT = smoothstep(0.0, 0.7, elev + 0.15 * sin(lon * 2.0 + uTime * 0.09));
+    float mixT = smoothstep(0.0, 0.7, elev + 0.12 * sin(vDir.x * 2.2 + uTime * 0.09));
     vec3 col = mix(green, teal, mixT);
     col = mix(col, rose, smoothstep(0.4, 0.85, elev) * 0.4);
     float alpha = (sheets * 0.85 + veil * 0.7) * uFade;
