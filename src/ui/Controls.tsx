@@ -13,24 +13,27 @@ export function Controls() {
     () => window.matchMedia('(pointer: coarse)').matches && motionNeedsGesture(),
   )
 
+  const seatedId = room.self.seatedFireId
+
+  // Gyro is only for looking around once seated — not for orbital travel.
   useEffect(() => {
+    if (!seatedId) return
     if (motion) return
     if (!window.matchMedia('(pointer: coarse)').matches) return
     void enableMotion()
-  }, [motion])
+  }, [motion, seatedId])
 
-  // After sitting (or on a new HTTPS origin), offer motion again if it is not live yet.
   const needsMotion =
-    motion ||
-    (window.matchMedia('(pointer: coarse)').matches &&
-      motionNeedsGesture() &&
-      !motionListening())
+    Boolean(seatedId) &&
+    (motion ||
+      (window.matchMedia('(pointer: coarse)').matches &&
+        motionNeedsGesture() &&
+        !motionListening()))
 
   if (view.traveling) {
     return needsMotion ? <MotionButton onGranted={() => setMotion(false)} /> : null
   }
 
-  const seatedId = room.self.seatedFireId
   const hostedId = room.self.hostedFireId
   const seatedFire = room.fires.find((fire) => fire.id === seatedId)
   const hostedFire = room.fires.find((fire) => fire.id === hostedId)
