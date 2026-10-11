@@ -33,15 +33,17 @@ const FRAG = /* glsl */ `
   void main() {
     #include <logdepthbuf_fragment>
     float land = texture2D(uLand, vUv).r;
-    vec3 ocean = vec3(0.008, 0.010, 0.016);
-    vec3 earth = vec3(0.055, 0.046, 0.036);
+    // Slightly lifted so the night globe still reads on a phone against space.
+    vec3 ocean = vec3(0.018, 0.028, 0.042);
+    vec3 earth = vec3(0.082, 0.068, 0.052);
     float coast = smoothstep(0.2, 0.8, land);
     vec3 col = mix(ocean, earth, coast);
-    float shade = 0.004 * sin(vUv.x * 70.0 + vUv.y * 36.0);
+    float shade = 0.006 * sin(vUv.x * 70.0 + vUv.y * 36.0);
     col += shade * coast;
     vec3 viewDir = normalize(cameraPosition - vWorld);
-    float fres = pow(1.0 - max(dot(normalize(vNormal), viewDir), 0.0), 2.6);
-    col += vec3(0.18, 0.08, 0.03) * fres * 0.28 * (1.0 - uSeat);
+    float fres = pow(1.0 - max(dot(normalize(vNormal), viewDir), 0.0), 2.4);
+    col += vec3(0.16, 0.22, 0.18) * fres * 0.22 * (1.0 - uSeat);
+    col += vec3(0.22, 0.10, 0.04) * fres * 0.18 * (1.0 - uSeat);
     gl_FragColor = vec4(col, 1.0);
   }
 `
@@ -55,8 +57,9 @@ const AIR_FRAG = /* glsl */ `
   void main() {
     #include <logdepthbuf_fragment>
     vec3 viewDir = normalize(cameraPosition - vWorld);
-    float fres = pow(1.0 - abs(dot(normalize(vNormal), viewDir)), 3.0);
-    gl_FragColor = vec4(0.42, 0.18, 0.05, fres * 0.22 * (1.0 - uSeat));
+    float fres = pow(1.0 - abs(dot(normalize(vNormal), viewDir)), 2.8);
+    vec3 rim = mix(vec3(0.20, 0.55, 0.42), vec3(0.48, 0.22, 0.08), 0.45);
+    gl_FragColor = vec4(rim, fres * 0.32 * (1.0 - uSeat));
   }
 `
 

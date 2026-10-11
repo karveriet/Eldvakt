@@ -30,9 +30,15 @@ export function CameraRig() {
     const toward = 0.22 + 0.74 * u
     look.set(radial.x * toward, radial.y * toward, radial.z * toward)
     radialUp.set(radial.x, radial.y, radial.z)
-    up.copy(worldUp).lerp(radialUp, u)
-    if (up.lengthSq() < 1e-6) up.set(0, 1, 0)
-    camera.up.copy(up.normalize())
+    // Project world-up onto the view plane so the camera does not gimbal at the poles.
+    up.copy(worldUp)
+    const align = Math.abs(radialUp.dot(worldUp))
+    if (align > 0.96) up.copy(camera.up)
+    up.addScaledVector(radialUp, -up.dot(radialUp))
+    if (up.lengthSq() < 1e-8) up.set(radial.z, 0, -radial.x)
+    up.normalize()
+    if (u > 0) up.lerp(radialUp, u).normalize()
+    camera.up.copy(up)
     camera.lookAt(look)
     fit(camera, 0.05, 80)
     globeSeat.value = u

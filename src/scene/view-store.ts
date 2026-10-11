@@ -38,12 +38,13 @@ const state = {
   anim: null as Anim | null,
 }
 
-/** Orbit inertia in degrees/second. */
-let spinLat = 0
-let spinLon = 0
+/** Orbit inertia in degrees/second (pitch / yaw in the local trackball frame). */
+let spinPitch = 0
+let spinYaw = 0
 let lastTick: number | null = null
-/** Stable local-east when the look point sits on a pole. */
-let lastEast = { x: 0, y: 0, z: 1 }
+/** Continuity for the local-east axis so poles do not flip the drag frame. */
+let lastRight = { x: 0, y: 0, z: 1 }
+let haveRight = false
 
 /** Exponential friction; higher = stops sooner. */
 const SPIN_DECAY = 1.85
@@ -97,6 +98,7 @@ export function travelTo(
   seatTo = 0,
 ) {
   stopOrbitSpin()
+  haveRight = false
   const from = { lat: state.lat, lon: state.lon, distance: state.distance }
   const to = { lat, lon: normalizeLon(lon), distance: clamp(distance, VIEW_MIN, VIEW_MAX) }
   const arc = angularDistance(from, to)
@@ -156,21 +158,28 @@ export function nudge(dLat: number, dLon: number) {
 }
 
 /** Release a coasting spin after a flick (degrees/second). */
-export function flingOrbit(vLat: number, vLon: number) {
+export function flingOrbit(vPitch: number, vYaw: number) {
   if (state.traveling || state.seat >= LOCAL_AT) return
-  const speed = Math.hypot(vLat, vLon)
+  const speed = Math.hypot(vPitch, vYaw)
   if (speed < FLING_MIN) {
     stopOrbitSpin()
     return
   }
   const scale = Math.min(1, FLING_MAX / speed)
-  spinLat = vLat * scale
-  spinLon = vLon * scale
+  spinPitch = vPitch * scale
+  spinYaw = vYaw * scale
 }
 
 export function stopOrbitSpin() {
-  spinLat = 0
-  spinLon = 0
+  spinPitch = 0
+  spinYaw = 0
+}
+
+/** Test helper: drop trackball continuity (keeps look point). */
+export function resetOrbitFrame() {
+  haveRight = false
+  lastRight = { x: 0, y: 0, z: 1 }
+  stopOrbitSpin()
 }
 
 export function setGaze(yaw: number, pitch: number) {
@@ -194,13 +203,13 @@ export function tickView(now: number) {
     dt > 0 &&
     !state.traveling &&
     state.seat < LOCAL_AT &&
-    (Math.abs(spinLat) > SPIN_STOP || Math.abs(spinLon) > SPIN_STOP)
+    (Math.abs(spinPitch) > SPIN_STOP || Math.abs(spinYaw) > SPIN_STOP)
   ) {
-    applyOrbitDelta(spinLat * dt, spinLon * dt)
+    applyOrbitDelta(spinPitch * dt, spinYaw * dt)
     const decay = Math.exp(-SPIN_DECAY * dt)
-    spinLat *= decay
-    spinLon *= decay
-    if (Math.hypot(spinLat, spinLon) < SPIN_STOP) stopOrbitSpin()
+    spinPitch *= decay
+    spinYaw *= decay
+    if (Math.hypot(spinPitch, spinYaw) < SPIN_STOP) stopOrbitSpin()
   }
 
   const anim = state.anim
@@ -229,27 +238,47 @@ export function arriveDistance() {
 }
 
 /**
- * Rotate the look-point on the sphere without clamping at the poles.
- * Vertical drag pitches around local east; horizontal yaws around world up.
- * Near the poles, reuse the last good east so a continuous drag keeps going over.
+ * Screen-stable trackball: pitch around local east, yaw around local north.
+ * Positive dPitch moves the look point north. Avoids world-up yaw near the poles
+ * (that gimbal is what made the globe flutter).
  */
-function applyOrbitDelta(dLat: number, dLon: number) {
+function applyOrbitDelta(dPitch: number, dYaw: number) {
   const pos = latLonToVector(state.lat, state.lon, 1)
   const worldUp = { x: 0, y: 1, z: 0 }
-  let east = cross(worldUp, pos)
-  if (lengthSq(east) < 1e-8) {
-    east = projectPerp(lastEast, pos)
-    if (lengthSq(east) < 1e-10) east = projectPerp({ x: 1, y: 0, z: 0 }, pos)
-    if (lengthSq(east) < 1e-10) east = { x: 0, y: 0, z: 1 }
+  let right = cross(worldUp, pos)
+  if (lengthSq(right) < 1e-8) {
+    right = projectPerp(lastRight, pos)
+    if (lengthSq(right) < 1e-10) right = projectPerp({ x: 1, y: 0, z: 0 }, pos)
+    if (lengthSq(right) < 1e-10) right = { x: 0, y: 0, z: 1 }
   }
-  east = normalize(east)
-  lastEast = east
+  right = normalize(right)
+  // Keep the axis continuous across the pole (no sudden 180° flip).
+  if (haveRight && dot(right, lastRight) < 0) {
+    right = { x: -right.x, y: -right.y, z: -right.z }
+  }
+  haveRight = true
+  lastRight = right
 
-  let next = rotateAround(pos, east, (dLat * Math.PI) / 180)
-  next = rotateAround(next, worldUp, (dLon * Math.PI) / 180)
+  const localUp = normalize(cross(pos, right))
+  // Positive dPitch → north (negate vs right-hand rotation around east).
+  const pitch = (-dPitch * Math.PI) / 180
+  const yaw = (dYaw * Math.PI) / 180
+
+  let next = rotateAround(pos, right, pitch)
+  const yawAxis = rotateAround(localUp, right, pitch)
+  next = rotateAround(next, yawAxis, yaw)
+  lastRight = normalize(projectPerp(rotateAround(right, yawAxis, yaw), next))
+
   const point = vectorToLatLon(next)
   state.lat = point.lat
   state.lon = point.lon
+}
+
+function dot(
+  a: { x: number; y: number; z: number },
+  b: { x: number; y: number; z: number },
+) {
+  return a.x * b.x + a.y * b.y + a.z * b.z
 }
 
 function projectPerp(

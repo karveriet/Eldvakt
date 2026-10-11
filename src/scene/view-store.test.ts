@@ -1,18 +1,19 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { normalizeLon } from '../geo/cell.ts'
+import { angularDistance } from '../geo/sphere.ts'
 import { VIEW_FAR } from '../fire/view-distance.ts'
 import {
   flingOrbit,
   getView,
   nudge,
-  stopOrbitSpin,
+  resetOrbitFrame,
   tickView,
   travelTo,
 } from './view-store.ts'
 
 function hardLook(lat: number, lon: number) {
-  stopOrbitSpin()
+  resetOrbitFrame()
   travelTo(lat, lon, VIEW_FAR, null, 0)
   const t0 = performance.now()
   tickView(t0)
@@ -24,10 +25,15 @@ function hardLook(lat: number, lon: number) {
 }
 
 describe('orbit view', () => {
+  it('moves north for positive pitch (drag up)', () => {
+    hardLook(20, 0)
+    nudge(8, 0)
+    assert.ok(getView().lat > 20)
+  })
+
   it('crosses the old pole clamp instead of sticking near ±78°', () => {
     hardLook(20, 0)
-    // Negative pitch moves the look north with the current orbit mapping.
-    nudge(-70, 0)
+    nudge(70, 0)
     const after = getView()
     assert.ok(after.lat > 78)
     assert.ok(Math.abs(after.lat) <= 90)
@@ -35,12 +41,26 @@ describe('orbit view', () => {
 
   it('keeps rotating over the pole instead of bouncing back', () => {
     hardLook(20, 0)
-    nudge(-70, 0)
-    nudge(-30, 0)
+    nudge(70, 0)
+    nudge(30, 0)
     const after = getView()
     assert.ok(after.lat < 80)
     // Crossing the north pole should land on the opposite meridian.
     assert.ok(Math.abs(normalizeLon(after.lon - 0)) > 90)
+  })
+
+  it('stays continuous across many small steps over the pole', () => {
+    hardLook(75, 10)
+    let prev = { lat: getView().lat, lon: getView().lon }
+    for (let i = 0; i < 40; i++) {
+      nudge(2, 0.4)
+      const next = { lat: getView().lat, lon: getView().lon }
+      // Lon can leap near a pole; the look direction must still move a small step.
+      const arc = angularDistance(prev, next)
+      assert.ok(arc < 0.12, `arc ${arc} at step ${i}`)
+      prev = next
+    }
+    assert.ok(Math.abs(getView().lat) < 90)
   })
 
   it('coasts after a fling and then settles', () => {

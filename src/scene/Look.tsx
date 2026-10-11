@@ -102,12 +102,10 @@ export function Look() {
       if (!dragging || holding) return
       const now = performance.now()
       const dt = Math.max(1 / 240, (now - lastMoveAt) / 1000)
-      // Orbit: invert Y so dragging down looks down. Beside the fire, keep natural pitch.
+      // Drag down → look down (south in orbit, lower pitch beside the fire).
       const seated = getView().seat >= LOCAL_AT
-      const y = seated ? -dy : dy
-      // Slightly lighter than before so a flick has room to coast.
       const gain = seated ? 0.09 : 0.112
-      const dLat = y * gain
+      const dLat = -dy * gain
       const dLon = -dx * gain
       nudge(dLat, dLon)
       if (!seated && dt < 0.08) {

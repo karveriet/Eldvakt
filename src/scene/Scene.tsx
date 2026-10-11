@@ -1,4 +1,5 @@
 import { useFrame } from '@react-three/fiber'
+import { Aurora } from './Aurora.tsx'
 import { Beside } from './Beside.tsx'
 import { CameraRig } from './CameraRig.tsx'
 import { Glints } from './Glints.tsx'
@@ -11,8 +12,9 @@ import { tickView } from './view-store.ts'
 export function Scene() {
   return (
     <>
-      <color attach="background" args={['#05060a']} />
+      <color attach="background" args={['#04070c']} />
       <ViewClock />
+      <Aurora />
       <Stars />
       <Globe />
       <Hearths />
