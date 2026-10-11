@@ -8,10 +8,10 @@ import { pickTargets } from './hearth-layer.ts'
 import { LOCAL_AT } from '../geo/seat.ts'
 import { noteDrag } from './motion.ts'
 import {
+  beginOrbitGrab,
   flingOrbit,
   getView,
   nudge,
-  resetOrbitFrame,
   stopOrbitSpin,
   zoomBy,
 } from './view-store.ts'
@@ -71,9 +71,10 @@ export function Look() {
       lastMoveAt = performance.now()
       velLat = 0
       velLon = 0
-      stopOrbitSpin()
-      // Each grab starts from a fresh north-up screen frame.
-      if (getView().seat < LOCAL_AT) resetOrbitFrame()
+      // Stop coasting but keep the current camera frame — resetting to
+      // world-north here was snapping the globe on first touch after a spin.
+      if (getView().seat < LOCAL_AT) beginOrbitGrab()
+      else stopOrbitSpin()
       const seated = getRoomSnapshot().self.seatedFireId
       if (!seated || getView().traveling) return
       const hit = pick(event.clientX, event.clientY)

@@ -4,6 +4,7 @@ import { normalizeLon } from '../geo/cell.ts'
 import { angularDistance } from '../geo/sphere.ts'
 import { VIEW_FAR } from '../fire/view-distance.ts'
 import {
+  beginOrbitGrab,
   flingOrbit,
   getView,
   nudge,
@@ -138,5 +139,25 @@ describe('orbit view', () => {
     nudge(0, 8)
     // Positive yaw matches Look's -dx mapping used at fling time; just ensure motion.
     assert.ok(Math.abs(normalizeLon(getView().lon - lon0)) > 0.5)
+  })
+
+  it('does not snap look or camera-up when grabbing mid-coast', () => {
+    hardLook(25, 10)
+    flingOrbit(800, 200)
+    const t0 = 5_000_000
+    tickView(t0)
+    for (let i = 1; i <= 30; i++) tickView(t0 + i * 16)
+    const before = getView()
+    assert.ok(before.orbitUp)
+    beginOrbitGrab()
+    const after = getView()
+    assert.ok(Math.abs(after.lat - before.lat) < 1e-9)
+    assert.ok(Math.abs(normalizeLon(after.lon - before.lon)) < 1e-9)
+    assert.ok(after.orbitUp)
+    const d =
+      before.orbitUp!.x * after.orbitUp!.x +
+      before.orbitUp!.y * after.orbitUp!.y +
+      before.orbitUp!.z * after.orbitUp!.z
+    assert.ok(d > 0.98, `camera-up snapped on grab: dot=${d}`)
   })
 })

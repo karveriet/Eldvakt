@@ -206,12 +206,35 @@ export function stopOrbitSpin() {
   spinPos = null
 }
 
-/** Drop trackball continuity (keeps look point). Call on each new grab. */
+/** Full reset (tests / travel). Clears the camera frame too. */
 export function resetOrbitFrame() {
   haveRight = false
   lastRight = { x: 0, y: 0, z: 1 }
   orbitUp = null
   stopOrbitSpin()
+}
+
+/**
+ * Start a grab without snapping the view. Stops coasting and aligns the
+ * control frame to the current camera-up so the globe does not jump.
+ */
+export function beginOrbitGrab() {
+  stopOrbitSpin()
+  const pos = latLonToVector(state.lat, state.lon, 1)
+  if (!orbitUp) {
+    haveRight = false
+    lastRight = { x: 0, y: 0, z: 1 }
+    return
+  }
+  // up = pos × right  ⇒  right = up × pos
+  let right = cross(orbitUp, pos)
+  if (lengthSq(right) < 1e-10) {
+    right = cross(WORLD_UP, pos)
+  }
+  if (lengthSq(right) < 1e-10) right = { x: 1, y: 0, z: 0 }
+  lastRight = normalize(right)
+  orbitUp = normalize(cross(pos, lastRight))
+  haveRight = true
 }
 
 export function setGaze(yaw: number, pitch: number) {
