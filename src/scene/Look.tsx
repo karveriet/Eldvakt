@@ -7,7 +7,7 @@ import { gesture } from './gesture.ts'
 import { pickTargets } from './hearth-layer.ts'
 import { LOCAL_AT } from '../geo/seat.ts'
 import { noteDrag } from './motion.ts'
-import { getView, nudge, zoomBy } from './view-store.ts'
+import { flingOrbit, getView, nudge, stopOrbitSpin, zoomBy } from './view-store.ts'
 
 const raycaster = new THREE.Raycaster()
 const pointer = new THREE.Vector2()
@@ -24,6 +24,9 @@ export function Look() {
     let holding = false
     let pinchDist = 0
     const pinches = new Map<number, { x: number; y: number }>()
+    let lastMoveAt = 0
+    let velLat = 0
+    let velLon = 0
 
     const pick = (x: number, y: number) => {
       const rect = el.getBoundingClientRect()
@@ -52,11 +55,16 @@ export function Look() {
         down = null
         holding = false
         gesture.holdFireId = null
+        stopOrbitSpin()
         return
       }
       down = { x: event.clientX, y: event.clientY, pointerId: event.pointerId }
       dragging = false
       holding = false
+      lastMoveAt = performance.now()
+      velLat = 0
+      velLon = 0
+      stopOrbitSpin()
       const seated = getRoomSnapshot().self.seatedFireId
       if (!seated || getView().traveling) return
       const hit = pick(event.clientX, event.clientY)
@@ -78,6 +86,7 @@ export function Look() {
         const dist = Math.hypot(a.x - b.x, a.y - b.y)
         if (pinchDist > 0 && !getRoomSnapshot().self.seatedFireId) zoomBy(pinchDist / dist)
         pinchDist = dist
+        stopOrbitSpin()
         return
       }
       if (!down || event.pointerId !== down.pointerId) return
@@ -91,7 +100,24 @@ export function Look() {
         }
       }
       if (!dragging || holding) return
-      nudge(-dy * 0.09, -dx * 0.09)
+      const now = performance.now()
+      const dt = Math.max(1 / 240, (now - lastMoveAt) / 1000)
+      // Orbit: invert Y so dragging down looks down. Beside the fire, keep natural pitch.
+      const seated = getView().seat >= LOCAL_AT
+      const y = seated ? -dy : dy
+      // Slightly lighter than before so a flick has room to coast.
+      const gain = seated ? 0.09 : 0.112
+      const dLat = y * gain
+      const dLon = -dx * gain
+      nudge(dLat, dLon)
+      if (!seated && dt < 0.08) {
+        // Blend so a flick reads as release speed, not one noisy sample.
+        const sampleLat = dLat / dt
+        const sampleLon = dLon / dt
+        velLat = velLat * 0.35 + sampleLat * 0.65
+        velLon = velLon * 0.35 + sampleLon * 0.65
+      }
+      lastMoveAt = now
       down.x = event.clientX
       down.y = event.clientY
       noteDrag()
@@ -108,10 +134,16 @@ export function Look() {
       } else if (!dragging && !getView().traveling && !getRoomSnapshot().self.seatedFireId) {
         const hit = pick(event.clientX, event.clientY)
         if (hit && hit.members.length > 0) approachCluster(hit.lat, hit.lon, hit.radiusKm, hit.members)
+      } else if (dragging && getView().seat < LOCAL_AT && !getView().traveling) {
+        const age = performance.now() - lastMoveAt
+        if (age < 80) flingOrbit(velLat, velLon)
+        else stopOrbitSpin()
       }
       down = null
       dragging = false
       holding = false
+      velLat = 0
+      velLon = 0
     }
 
     el.addEventListener('pointerdown', onDown)
@@ -120,6 +152,7 @@ export function Look() {
     const onWheel = (event: WheelEvent) => {
       if (getRoomSnapshot().self.seatedFireId || getView().traveling) return
       event.preventDefault()
+      stopOrbitSpin()
       zoomBy(Math.exp(event.deltaY * 0.0011))
     }
     el.addEventListener('wheel', onWheel, { passive: false })

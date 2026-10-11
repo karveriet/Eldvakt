@@ -1,5 +1,5 @@
-import { angularDistance, slerpLatLon } from '../geo/sphere.ts'
 import { normalizeLon } from '../geo/cell.ts'
+import { angularDistance, latLonToVector, slerpLatLon, vectorToLatLon } from '../geo/sphere.ts'
 import { LOCAL_AT } from '../geo/seat.ts'
 import {
   smootherstep,
@@ -37,6 +37,21 @@ const state = {
   traveling: false,
   anim: null as Anim | null,
 }
+
+/** Orbit inertia in degrees/second. */
+let spinLat = 0
+let spinLon = 0
+let lastTick: number | null = null
+/** Stable local-east when the look point sits on a pole. */
+let lastEast = { x: 0, y: 0, z: 1 }
+
+/** Exponential friction; higher = stops sooner. */
+const SPIN_DECAY = 1.85
+const SPIN_STOP = 0.35
+/** Ignore tiny release speeds so a slow lift does not coast. */
+const FLING_MIN = 70
+/** Cap so a hard flick can spin hard without going infinite. */
+const FLING_MAX = 1200
 
 let ui: UiSnap = { traveling: false, focusId: null, near: false }
 const listeners = new Set<() => void>()
@@ -81,6 +96,7 @@ export function travelTo(
   focusId: string | null,
   seatTo = 0,
 ) {
+  stopOrbitSpin()
   const from = { lat: state.lat, lon: state.lon, distance: state.distance }
   const to = { lat, lon: normalizeLon(lon), distance: clamp(distance, VIEW_MIN, VIEW_MAX) }
   const arc = angularDistance(from, to)
@@ -135,8 +151,26 @@ export function nudge(dLat: number, dLon: number) {
     state.pitch = clamp(state.pitch + dLat, -24, 42)
     return
   }
-  state.lat = clamp(state.lat + dLat, -78, 78)
-  state.lon = normalizeLon(state.lon + dLon)
+  stopOrbitSpin()
+  applyOrbitDelta(dLat, dLon)
+}
+
+/** Release a coasting spin after a flick (degrees/second). */
+export function flingOrbit(vLat: number, vLon: number) {
+  if (state.traveling || state.seat >= LOCAL_AT) return
+  const speed = Math.hypot(vLat, vLon)
+  if (speed < FLING_MIN) {
+    stopOrbitSpin()
+    return
+  }
+  const scale = Math.min(1, FLING_MAX / speed)
+  spinLat = vLat * scale
+  spinLon = vLon * scale
+}
+
+export function stopOrbitSpin() {
+  spinLat = 0
+  spinLon = 0
 }
 
 export function setGaze(yaw: number, pitch: number) {
@@ -152,6 +186,23 @@ export function zoomBy(factor: number) {
 }
 
 export function tickView(now: number) {
+  const dt =
+    lastTick == null ? 0 : Math.min(0.05, Math.max(0, (now - lastTick) / 1000))
+  lastTick = now
+
+  if (
+    dt > 0 &&
+    !state.traveling &&
+    state.seat < LOCAL_AT &&
+    (Math.abs(spinLat) > SPIN_STOP || Math.abs(spinLon) > SPIN_STOP)
+  ) {
+    applyOrbitDelta(spinLat * dt, spinLon * dt)
+    const decay = Math.exp(-SPIN_DECAY * dt)
+    spinLat *= decay
+    spinLon *= decay
+    if (Math.hypot(spinLat, spinLon) < SPIN_STOP) stopOrbitSpin()
+  }
+
   const anim = state.anim
   if (!anim) return
   const raw = (now - anim.start) / anim.dur
@@ -175,6 +226,77 @@ export function tickView(now: number) {
 
 export function arriveDistance() {
   return VIEW_ARRIVE
+}
+
+/**
+ * Rotate the look-point on the sphere without clamping at the poles.
+ * Vertical drag pitches around local east; horizontal yaws around world up.
+ * Near the poles, reuse the last good east so a continuous drag keeps going over.
+ */
+function applyOrbitDelta(dLat: number, dLon: number) {
+  const pos = latLonToVector(state.lat, state.lon, 1)
+  const worldUp = { x: 0, y: 1, z: 0 }
+  let east = cross(worldUp, pos)
+  if (lengthSq(east) < 1e-8) {
+    east = projectPerp(lastEast, pos)
+    if (lengthSq(east) < 1e-10) east = projectPerp({ x: 1, y: 0, z: 0 }, pos)
+    if (lengthSq(east) < 1e-10) east = { x: 0, y: 0, z: 1 }
+  }
+  east = normalize(east)
+  lastEast = east
+
+  let next = rotateAround(pos, east, (dLat * Math.PI) / 180)
+  next = rotateAround(next, worldUp, (dLon * Math.PI) / 180)
+  const point = vectorToLatLon(next)
+  state.lat = point.lat
+  state.lon = point.lon
+}
+
+function projectPerp(
+  v: { x: number; y: number; z: number },
+  axis: { x: number; y: number; z: number },
+) {
+  const dot = v.x * axis.x + v.y * axis.y + v.z * axis.z
+  return {
+    x: v.x - axis.x * dot,
+    y: v.y - axis.y * dot,
+    z: v.z - axis.z * dot,
+  }
+}
+
+function rotateAround(
+  v: { x: number; y: number; z: number },
+  axis: { x: number; y: number; z: number },
+  angle: number,
+) {
+  const c = Math.cos(angle)
+  const s = Math.sin(angle)
+  const dot = v.x * axis.x + v.y * axis.y + v.z * axis.z
+  return {
+    x: v.x * c + (axis.y * v.z - axis.z * v.y) * s + axis.x * dot * (1 - c),
+    y: v.y * c + (axis.z * v.x - axis.x * v.z) * s + axis.y * dot * (1 - c),
+    z: v.z * c + (axis.x * v.y - axis.y * v.x) * s + axis.z * dot * (1 - c),
+  }
+}
+
+function cross(
+  a: { x: number; y: number; z: number },
+  b: { x: number; y: number; z: number },
+) {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  }
+}
+
+function lengthSq(v: { x: number; y: number; z: number }) {
+  return v.x * v.x + v.y * v.y + v.z * v.z
+}
+
+function normalize(v: { x: number; y: number; z: number }) {
+  const len = Math.sqrt(lengthSq(v)) || 1
+  return { x: v.x / len, y: v.y / len, z: v.z / len }
 }
 
 function seatT(anim: Anim, raw: number): number {
