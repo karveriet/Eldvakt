@@ -200,13 +200,16 @@ describe('orbit view', () => {
     assert.ok(d > 0.98, `full turn should restore camera-up: dot=${d}`)
   })
 
-  it('pinches altitude continuously down near the surface', () => {
+  it('pinches altitude continuously down to a few meters', () => {
     hardLook(20, 10)
     assert.ok(getView().distance > 3)
-    for (let i = 0; i < 80; i++) zoomBy(0.85)
+    for (let i = 0; i < 120; i++) zoomBy(0.85)
     const low = getView().distance
-    assert.ok(low <= VIEW_MIN + 1e-9, `distance ${low}`)
-    assert.ok(low >= VIEW_MIN - 1e-9)
+    assert.ok(low <= VIEW_MIN + 1e-12, `distance ${low}`)
+    assert.ok(low >= VIEW_MIN - 1e-12)
+    const altM = (low - 1) * 6_371_000
+    assert.ok(altM < 5, `altitude ${altM}m should be a few meters`)
+    assert.ok(altM > 1, `altitude ${altM}m should stay above the crust`)
     // Near the surface, altitude scaling still moves smoothly before the floor.
     hardLook(20, 10)
     travelTo(20, 10, 1.02, null, 0)

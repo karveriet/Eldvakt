@@ -9,6 +9,7 @@ import { globeSeat } from './globe-seat.ts'
 /**
  * Bounding shell + analytic unit-sphere hit.
  * Limb stays round at every altitude — no faceted mesh up close.
+ * Sphere center follows the group (scene rebase when skimming the ground).
  */
 const VERT = /* glsl */ `
   #include <common>
@@ -27,25 +28,27 @@ const FRAG = /* glsl */ `
   #endif
   uniform sampler2D uLand;
   uniform float uSeat;
+  uniform vec3 uCenter;
   varying vec3 vWorld;
 
   void main() {
     vec3 ro = cameraPosition;
     vec3 rd = normalize(vWorld - cameraPosition);
-    float b = dot(ro, rd);
-    float c = dot(ro, ro) - 1.0;
+    vec3 oc = ro - uCenter;
+    float b = dot(oc, rd);
+    float c = dot(oc, oc) - 1.0;
     float h = b * b - c;
     if (h < 0.0) discard;
     float t = -b - sqrt(h);
-    if (t < 1e-5) {
+    if (t < 1e-6) {
       t = -b + sqrt(h);
-      if (t < 1e-5) discard;
+      if (t < 1e-6) discard;
     }
     vec3 p = ro + rd * t;
-    vec3 n = normalize(p);
+    vec3 n = normalize(p - uCenter);
 
-    float lon = atan(p.x, p.z);
-    float lat = asin(clamp(p.y, -1.0, 1.0));
+    float lon = atan(n.x, n.z);
+    float lat = asin(clamp(n.y, -1.0, 1.0));
     vec2 uv = vec2(lon / (2.0 * 3.14159265) + 0.5, 0.5 - lat / 3.14159265);
     float land = texture2D(uLand, uv).r;
 
@@ -74,11 +77,16 @@ const FRAG = /* glsl */ `
 
 export function Globe() {
   const root = useRef<THREE.Group>(null)
+  const center = useRef(new THREE.Vector3())
   const texture = useMemo(() => createLandTexture(), [])
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
-        uniforms: { uLand: { value: texture }, uSeat: globeSeat },
+        uniforms: {
+          uLand: { value: texture },
+          uSeat: globeSeat,
+          uCenter: { value: new THREE.Vector3() },
+        },
         vertexShader: VERT,
         fragmentShader: FRAG,
         side: THREE.DoubleSide,
@@ -87,7 +95,11 @@ export function Globe() {
   )
 
   useFrame(() => {
-    if (root.current) root.current.visible = getView().seat < LOCAL_AT
+    const group = root.current
+    if (!group) return
+    group.visible = getView().seat < LOCAL_AT
+    group.getWorldPosition(center.current)
+    material.uniforms.uCenter.value.copy(center.current)
   })
 
   return (

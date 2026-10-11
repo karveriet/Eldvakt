@@ -258,7 +258,7 @@ export function zoomBy(factor: number) {
   // Scale altitude, not radius — near the surface radius≈1 so radius*=factor jumps.
   const altMin = VIEW_MIN - 1
   const altMax = VIEW_MAX - 1
-  const alt = Math.max(1e-6, state.distance - 1)
+  const alt = Math.max(altMin, state.distance - 1)
   state.distance = 1 + clamp(alt * factor, altMin, altMax)
   publish()
 }

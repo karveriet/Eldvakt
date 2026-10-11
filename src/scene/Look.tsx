@@ -28,6 +28,7 @@ const offset = new THREE.Vector3()
 export function Look() {
   const gl = useThree((state) => state.gl)
   const camera = useThree((state) => state.camera)
+  const scene = useThree((state) => state.scene)
 
   useEffect(() => {
     const el = gl.domElement
@@ -62,7 +63,9 @@ export function Look() {
       let best: (typeof pickTargets)[number] | null = null
       let bestT = Infinity
       for (const target of pickTargets) {
-        offset.copy(target.position).sub(raycaster.ray.origin)
+        // Targets are stored in planet space; add scene rebase so picks
+        // stay valid when the camera parks at the origin near the ground.
+        offset.copy(target.position).add(scene.position).sub(raycaster.ray.origin)
         const t = offset.dot(raycaster.ray.direction)
         if (t < 0) continue
         const dist2 = offset.lengthSq() - t * t
@@ -223,7 +226,7 @@ export function Look() {
       window.removeEventListener('pointerup', onUp)
       el.removeEventListener('wheel', onWheel)
     }
-  }, [camera, gl])
+  }, [camera, gl, scene])
 
   return null
 }

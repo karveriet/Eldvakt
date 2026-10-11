@@ -176,9 +176,12 @@ export class HearthLayer {
     this.sparkPoints.visible = true
 
     const approach = Math.min(1, view.seat / LOCAL_AT)
-    // Real altitude — do not floor at 0.05 or ground-level zoom keeps huge sprites.
-    const gap = Math.max(1e-4, globeDistance(view.distance, view.seat) - 1)
+    // Real altitude — meter-scale zoom needs the true gap, not a 0.05 floor.
+    const gap = Math.max(1e-9, globeDistance(view.distance, view.seat) - 1)
     const angular = 0.38 + approach * 0.55
+    // Keep hearths under the camera when skimming a few meters up.
+    const glowLift = Math.min(0.012, Math.max(1e-9, gap * 0.45))
+    const flameLift = Math.min(0.004, Math.max(1e-9, gap * 0.2))
 
     this.glows.forEach((sprite) => {
       sprite.visible = false
@@ -188,12 +191,12 @@ export class HearthLayer {
         const sprite = this.glows[index]
         if (!sprite) return
         const weight = cluster.items.reduce((sum, item) => sum + item.weight, 0) / cluster.items.length
-        const position = latLonToVector(cluster.lat, cluster.lon, 1.012)
+        const position = latLonToVector(cluster.lat, cluster.lon, 1 + glowLift)
         sprite.position.set(position.x, position.y, position.z)
         const orbitGlow =
           view.distance * (0.03 + 0.01 * Math.sqrt(cluster.items.length)) * (0.7 + weight)
         const size = Math.min(orbitGlow, gap * 2.4 * (0.7 + weight))
-        sprite.scale.setScalar(size)
+        sprite.scale.setScalar(Math.max(size, gap * 0.15))
         const material = sprite.material
         material.opacity = glowOpacity * (0.55 + Math.min(0.45, weight))
         sprite.visible = true
@@ -225,11 +228,11 @@ export class HearthLayer {
         const hero = view.focusId === fire.id
         const orbitSize = (hero ? 1.45 : 0.48) * Math.max(0.28, fire.weight)
         // Shrink with altitude so continuous ground zoom keeps fires readable.
-        const size = Math.min(orbitSize, angular * gap)
+        const size = Math.max(Math.min(orbitSize, angular * gap), gap * 0.35)
         const other = view.focusId && view.focusId !== fire.id ? 1 - approach : 1
-        const position = latLonToVector(fire.shown.lat, fire.shown.lon, 1.004)
+        const position = latLonToVector(fire.shown.lat, fire.shown.lon, 1 + flameLift)
         this.normal.set(position.x, position.y, position.z).normalize()
-        slot.pivot.position.copy(this.normal).multiplyScalar(1.004)
+        slot.pivot.position.copy(this.normal).multiplyScalar(1 + flameLift)
         slot.pivot.quaternion.setFromUnitVectors(UP, this.normal)
         slot.pivot.scale.setScalar(size)
         const pool = 0.46 / Math.max(size, 0.2)
