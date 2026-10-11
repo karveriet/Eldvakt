@@ -85,7 +85,6 @@ export function Luminaries() {
   const moon = useRef<BodyMesh>(null)
   const horizon = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
   const drawn = useRef<boolean | null>(null)
-  const { gl } = useThree()
 
   const sunMat = useMemo(() => makeMaterial(0, 1), [])
   const moonMat = useMemo(() => makeMaterial(1, 0.5), [])
@@ -126,7 +125,6 @@ export function Luminaries() {
       sunMat.needsUpdate = true
       moonMat.needsUpdate = true
       drawn.current = local
-      gl.localClippingEnabled = local
     }
   })
 
