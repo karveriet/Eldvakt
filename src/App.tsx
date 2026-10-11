@@ -1,6 +1,7 @@
 import { Canvas } from '@react-three/fiber'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import * as THREE from 'three'
+import { cosmosAudio } from './audio/cosmos.ts'
 import { hearthAudio } from './audio/hearth.ts'
 import { clearTint, hasCharacterTint, subscribeTint } from './character/tint.ts'
 import { connectRoom, getRoomSnapshot, subscribeRoom } from './net/room.ts'
@@ -56,7 +57,10 @@ function Night() {
   useEffect(() => connectRoom(), [])
 
   useEffect(() => {
-    const unlock = () => hearthAudio.unlock()
+    const unlock = () => {
+      hearthAudio.unlock()
+      cosmosAudio.unlock()
+    }
     window.addEventListener('pointerdown', unlock)
     return () => window.removeEventListener('pointerdown', unlock)
   }, [])

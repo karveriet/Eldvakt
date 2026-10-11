@@ -6,7 +6,9 @@ import { LOCAL_AT, globeDistance } from '../geo/seat.ts'
 import { FLAME_FRAG, FLAME_VERT } from './flame-shader.ts'
 import { assignFans, displayLatLon } from '../geo/display.ts'
 import { latLonToVector } from '../geo/sphere.ts'
+import { cosmosAudio } from '../audio/cosmos.ts'
 import { hearthAudio } from '../audio/hearth.ts'
+import { audioPresence } from '../audio/presence.ts'
 import { getRoomSnapshot, serverNow } from '../net/room.ts'
 import { gesture } from './gesture.ts'
 import { getView } from './view-store.ts'
@@ -160,8 +162,22 @@ export class HearthLayer {
       const body = companyScale(loudFire.seatedCount) / companyScale(1)
       loud = timeStrength(loudFire, now) * Math.min(1.35, body)
     }
-    hearthAudio.setStrength(loud)
+    const seatedId = room.self.seatedFireId
+    const seatedFire = seatedId ? items.find((fire) => fire.id === seatedId) : undefined
+    let hearth = 0
+    if (seatedFire) {
+      const body = companyScale(seatedFire.seatedCount) / companyScale(1)
+      hearth = timeStrength(seatedFire, now) * Math.min(1.35, body)
+    }
+    const mix = audioPresence({
+      seated: Boolean(seatedId),
+      closeness: close,
+      seat: view.seat,
+      hearth,
+    })
+    hearthAudio.setStrength(mix.fire)
     hearthAudio.tick(dt)
+    cosmosAudio.setLevel(mix.cosmos)
 
     if (view.seat >= LOCAL_AT) {
       this.glows.forEach((sprite) => {
