@@ -209,10 +209,10 @@ describe('orbit view', () => {
     assert.ok(d > 0.98, `full turn should restore camera-up: dot=${d}`)
   })
 
-  it('turns the whole globe west-to-east once per minute when idle', () => {
+  it('turns the whole globe west-to-east once every two minutes when idle', () => {
     hardLook(20, 40)
     assert.ok(getView().distance >= VIEW_WHOLE)
-    assert.equal(GLOBE_SPIN_DEG_PER_SEC, 6)
+    assert.equal(GLOBE_SPIN_DEG_PER_SEC, 3)
     const t0 = 8_000_000
     tickView(t0)
     const startLon = getView().lon

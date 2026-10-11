@@ -15,8 +15,8 @@ export const VIEW_MAX = 4.6
 export const VIEW_SIT_ZOOM = VIEW_ARRIVE
 /** Idle turn only while the whole night globe still fills the view. */
 export const VIEW_WHOLE = VIEW_FAR - 0.35
-/** Naked-eye whole-globe spin: one full turn per minute (sky stays on real time). */
-export const GLOBE_SPIN_DEG_PER_SEC = 360 / 60
+/** Naked-eye whole-globe spin: one full turn every two minutes (sky stays on real time). */
+export const GLOBE_SPIN_DEG_PER_SEC = 360 / 120
 /**
  * Below this altitude (Earth radii), the scene origin rebases onto the
  * camera so meter-scale height stays precise in the GPU.

@@ -369,7 +369,7 @@ export function tickView(now: number) {
     if (spinSpeed < SPIN_STOP) stopOrbitSpin()
   }
 
-  // Whole-globe idle: visible west→east spin (1 rev/min). Sky stays on real time.
+  // Whole-globe idle: visible west→east spin (1 rev / 2 min). Sky stays on real time.
   if (dt > 0 && canGlobeSpin()) {
     applyGlobeSpin(GLOBE_SPIN_DEG_PER_SEC * dt)
   }
