@@ -7,7 +7,14 @@ import { gesture } from './gesture.ts'
 import { pickTargets } from './hearth-layer.ts'
 import { LOCAL_AT } from '../geo/seat.ts'
 import { noteDrag } from './motion.ts'
-import { flingOrbit, getView, nudge, stopOrbitSpin, zoomBy } from './view-store.ts'
+import {
+  flingOrbit,
+  getView,
+  nudge,
+  resetOrbitFrame,
+  stopOrbitSpin,
+  zoomBy,
+} from './view-store.ts'
 
 const raycaster = new THREE.Raycaster()
 const pointer = new THREE.Vector2()
@@ -65,6 +72,8 @@ export function Look() {
       velLat = 0
       velLon = 0
       stopOrbitSpin()
+      // Each grab starts from a fresh north-up screen frame.
+      if (getView().seat < LOCAL_AT) resetOrbitFrame()
       const seated = getRoomSnapshot().self.seatedFireId
       if (!seated || getView().traveling) return
       const hit = pick(event.clientX, event.clientY)
@@ -102,11 +111,12 @@ export function Look() {
       if (!dragging || holding) return
       const now = performance.now()
       const dt = Math.max(1 / 240, (now - lastMoveAt) / 1000)
-      // Drag down → look down (south in orbit, lower pitch beside the fire).
       const seated = getView().seat >= LOCAL_AT
       const gain = seated ? 0.09 : 0.112
-      const dLat = -dy * gain
-      const dLon = -dx * gain
+      // Orbit: grab the globe — drag down brings the north pole down; drag right
+      // moves the surface right. Beside the fire, keep natural pitch/yaw.
+      const dLat = seated ? -dy * gain : dy * gain
+      const dLon = seated ? -dx * gain : dx * gain
       nudge(dLat, dLon)
       if (!seated && dt < 0.08) {
         // Blend so a flick reads as release speed, not one noisy sample.

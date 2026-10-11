@@ -25,7 +25,7 @@ function hardLook(lat: number, lon: number) {
 }
 
 describe('orbit view', () => {
-  it('moves north for positive pitch (drag up)', () => {
+  it('moves north for positive pitch (finger dragging down on the globe)', () => {
     hardLook(20, 0)
     nudge(8, 0)
     assert.ok(getView().lat > 20)

@@ -171,13 +171,19 @@ export function flingOrbit(vPitch: number, vYaw: number) {
   const vy = vYaw * scale
   const pos = latLonToVector(state.lat, state.lon, 1)
   const { right, up } = orbitFrame(pos)
-  // Match applyOrbitDelta: +pitch rotates around -right, +yaw around +up.
-  spinAxis = normalize({
-    x: -right.x * vp + up.x * vy,
-    y: -right.y * vp + up.y * vy,
-    z: -right.z * vp + up.z * vy,
-  })
-  spinSpeed = Math.hypot(vp, vy)
+  // Same grab map as applyOrbitDelta: lookVel = north*vp + west*(-vy) via -right.
+  const lookVel = {
+    x: up.x * vp - right.x * vy,
+    y: up.y * vp - right.y * vy,
+    z: up.z * vp - right.z * vy,
+  }
+  const axis = cross(pos, lookVel)
+  if (lengthSq(axis) < 1e-12) {
+    stopOrbitSpin()
+    return
+  }
+  spinAxis = normalize(axis)
+  spinSpeed = Math.hypot(lookVel.x, lookVel.y, lookVel.z)
   haveRight = true
   lastRight = right
 }
@@ -257,23 +263,28 @@ export function arriveDistance() {
 }
 
 /**
- * Screen-stable trackball via parallel transport of the right-axis.
- * Positive dPitch moves the look point north at init; after that the same
- * screen drag keeps the same spatial sense across hemispheres and poles.
+ * Grab-style arcball: the look point follows the finger on the view plane.
+ * Positive dPitch → look north (north pole walks down when dragging down).
+ * Positive dYaw → look west (surface follows a rightward finger).
+ * The right-axis is parallel-transported so poles do not flip the gesture.
  */
 function applyOrbitDelta(dPitch: number, dYaw: number) {
   const pos = latLonToVector(state.lat, state.lon, 1)
-  let { right, up } = orbitFrame(pos)
+  const { right, up } = orbitFrame(pos)
+  const lookDelta = {
+    x: up.x * dPitch - right.x * dYaw,
+    y: up.y * dPitch - right.y * dYaw,
+    z: up.z * dPitch - right.z * dYaw,
+  }
+  const mag = Math.hypot(lookDelta.x, lookDelta.y, lookDelta.z)
+  if (mag < 1e-8) return
+  let axis = cross(pos, lookDelta)
+  if (lengthSq(axis) < 1e-12) return
+  axis = normalize(axis)
+  const angle = (mag * Math.PI) / 180
+  const next = rotateAround(pos, axis, angle)
+  lastRight = normalize(projectPerp(rotateAround(right, axis, angle), next))
   haveRight = true
-
-  const pitch = (-dPitch * Math.PI) / 180
-  const yaw = (dYaw * Math.PI) / 180
-
-  let next = rotateAround(pos, right, pitch)
-  up = rotateAround(up, right, pitch)
-  next = rotateAround(next, up, yaw)
-  right = rotateAround(right, up, yaw)
-  lastRight = normalize(projectPerp(right, next))
 
   const point = vectorToLatLon(next)
   state.lat = point.lat
@@ -285,20 +296,31 @@ function orbitFrame(pos: { x: number; y: number; z: number }) {
   let right: { x: number; y: number; z: number }
   if (haveRight) {
     right = projectPerp(lastRight, pos)
-    if (lengthSq(right) < 1e-10) {
-      right = projectPerp(cross(WORLD_UP, pos), pos)
+    if (lengthSq(right) < 1e-8) {
+      const helper = Math.abs(dot(pos, WORLD_UP)) > 0.72 ? { x: 1, y: 0, z: 0 } : WORLD_UP
+      right = cross(helper, pos)
     }
-    if (lengthSq(right) < 1e-10) {
-      right = projectPerp({ x: 1, y: 0, z: 0 }, pos)
-    }
+    if (lengthSq(right) < 1e-10) right = { x: 0, y: 0, z: 1 }
     right = normalize(right)
   } else {
+    // Fresh grab: align with the camera's north-up view.
     right = cross(WORLD_UP, pos)
     if (lengthSq(right) < 1e-8) right = { x: 1, y: 0, z: 0 }
     right = normalize(projectPerp(right, pos))
+    const upGuess = cross(pos, right)
+    if (dot(upGuess, WORLD_UP) < 0) {
+      right = { x: -right.x, y: -right.y, z: -right.z }
+    }
   }
   const up = normalize(cross(pos, right))
   return { right, up }
+}
+
+function dot(
+  a: { x: number; y: number; z: number },
+  b: { x: number; y: number; z: number },
+) {
+  return a.x * b.x + a.y * b.y + a.z * b.z
 }
 
 function projectPerp(
