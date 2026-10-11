@@ -41,10 +41,17 @@ const state = {
 /** Coasting spin: fixed world axis + speed (deg/s). Frozen at fling so poles cannot reverse it. */
 let spinAxis: { x: number; y: number; z: number } | null = null
 let spinSpeed = 0
+/** Authoritative look direction while coasting (avoids lat/lon pole jitter). */
+let spinPos: { x: number; y: number; z: number } | null = null
 let lastTick: number | null = null
 /** Parallel-transported screen-right; never re-derived from world-up mid-gesture. */
 let lastRight = { x: 0, y: 0, z: 1 }
 let haveRight = false
+/**
+ * Camera-up that travels with the grab/coast frame. When set, the rig must not
+ * re-snap to world-north — that snap is what makes a pole-crossing flick reverse.
+ */
+let orbitUp: { x: number; y: number; z: number } | null = null
 
 /** Exponential friction; higher = stops sooner. */
 const SPIN_DECAY = 1.85
@@ -88,6 +95,8 @@ export function getView() {
     pitch: state.pitch,
     focusId: state.focusId,
     traveling: state.traveling,
+    /** Stable camera-up during a grab/coast; null → fall back to world north. */
+    orbitUp,
   }
 }
 
@@ -100,6 +109,7 @@ export function travelTo(
 ) {
   stopOrbitSpin()
   haveRight = false
+  orbitUp = null
   const from = { lat: state.lat, lon: state.lon, distance: state.distance }
   const to = { lat, lon: normalizeLon(lon), distance: clamp(distance, VIEW_MIN, VIEW_MAX) }
   const arc = angularDistance(from, to)
@@ -184,19 +194,23 @@ export function flingOrbit(vPitch: number, vYaw: number) {
   }
   spinAxis = normalize(axis)
   spinSpeed = Math.hypot(lookVel.x, lookVel.y, lookVel.z)
+  spinPos = { ...pos }
   haveRight = true
   lastRight = right
+  orbitUp = { ...up }
 }
 
 export function stopOrbitSpin() {
   spinAxis = null
   spinSpeed = 0
+  spinPos = null
 }
 
-/** Test helper: drop trackball continuity (keeps look point). */
+/** Drop trackball continuity (keeps look point). Call on each new grab. */
 export function resetOrbitFrame() {
   haveRight = false
   lastRight = { x: 0, y: 0, z: 1 }
+  orbitUp = null
   stopOrbitSpin()
 }
 
@@ -222,14 +236,25 @@ export function tickView(now: number) {
     !state.traveling &&
     state.seat < LOCAL_AT &&
     spinAxis &&
+    spinPos &&
     spinSpeed > SPIN_STOP
   ) {
     const angle = (spinSpeed * dt * Math.PI) / 180
-    const pos = latLonToVector(state.lat, state.lon, 1)
-    const next = rotateAround(pos, spinAxis, angle)
-    if (haveRight) {
-      lastRight = normalize(projectPerp(rotateAround(lastRight, spinAxis, angle), next))
+    const prevUp = orbitUp ?? cross(spinPos, lastRight)
+    const next = normalize(rotateAround(spinPos, spinAxis, angle))
+    // Rigidly rotate the grab frame with the look point — no world-north rebuild.
+    const wantUp = projectPerp(rotateAround(prevUp, spinAxis, angle), next)
+    let right = normalize(projectPerp(rotateAround(lastRight, spinAxis, angle), next))
+    if (lengthSq(right) < 1e-10) right = normalize(cross(wantUp, next))
+    let camUp = normalize(cross(next, right))
+    if (lengthSq(wantUp) > 1e-10 && dot(camUp, wantUp) < 0) {
+      camUp = { x: -camUp.x, y: -camUp.y, z: -camUp.z }
+      right = { x: -right.x, y: -right.y, z: -right.z }
     }
+    lastRight = right
+    orbitUp = camUp
+    spinPos = next
+    haveRight = true
     const point = vectorToLatLon(next)
     state.lat = point.lat
     state.lon = point.lon
@@ -282,9 +307,11 @@ function applyOrbitDelta(dPitch: number, dYaw: number) {
   if (lengthSq(axis) < 1e-12) return
   axis = normalize(axis)
   const angle = (mag * Math.PI) / 180
-  const next = rotateAround(pos, axis, angle)
+  const next = normalize(rotateAround(pos, axis, angle))
   lastRight = normalize(projectPerp(rotateAround(right, axis, angle), next))
   haveRight = true
+  orbitUp = normalize(cross(next, lastRight))
+  if (lengthSq(orbitUp) < 1e-10) orbitUp = { ...up }
 
   const point = vectorToLatLon(next)
   state.lat = point.lat

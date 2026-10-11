@@ -107,6 +107,27 @@ describe('orbit view', () => {
     assert.ok(Math.abs(normalizeLon(after.lon - 0)) > 90)
   })
 
+  it('keeps a continuous camera-up while coasting over the pole', () => {
+    hardLook(55, 20)
+    flingOrbit(1000, 40)
+    const t0 = 4_000_000
+    tickView(t0)
+    const ups: { x: number; y: number; z: number }[] = []
+    for (let i = 1; i <= 100; i++) {
+      tickView(t0 + i * 16)
+      const up = getView().orbitUp
+      assert.ok(up, 'orbitUp should stay set during coast')
+      ups.push(up!)
+    }
+    // Neighboring ups must not flip ~180° (that was the jarring reverse).
+    for (let i = 1; i < ups.length; i++) {
+      const a = ups[i - 1]!
+      const b = ups[i]!
+      const d = a.x * b.x + a.y * b.y + a.z * b.z
+      assert.ok(d > 0.2, `camera-up flip at step ${i}: dot=${d}`)
+    }
+  })
+
   it('keeps the same drag sense in the southern hemisphere', () => {
     hardLook(-40, 30)
     const before = getView()
