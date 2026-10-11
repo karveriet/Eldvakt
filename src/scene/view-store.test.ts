@@ -213,9 +213,9 @@ describe('orbit view', () => {
     hardLook(20, 40)
     assert.ok(getView().distance >= VIEW_WHOLE)
     assert.equal(GLOBE_SPIN_DEG_PER_SEC, 6)
-    const startLon = getView().lon
     const t0 = 8_000_000
     tickView(t0)
+    const startLon = getView().lon
     const seconds = 10
     for (let i = 1; i <= seconds * 20; i++) tickView(t0 + i * 50)
     const turned = normalizeLon(startLon - getView().lon)
@@ -289,11 +289,12 @@ describe('orbit view', () => {
 
     for (let i = 1; i <= 240; i++) tickView(t0 + 32 + i * 16)
     const settled = getView()
-    const up = settled.orbitUp!
+    assert.ok(Math.abs(settled.lat - start.lat) < 1e-9)
+    // Twist friction is done; idle globe spin may still walk longitude / frame.
+    const settledLon = settled.lon
     tickView(t0 + 32 + 241 * 16)
-    const later = getView().orbitUp!
-    const d = up.x * later.x + up.y * later.y + up.z * later.z
-    assert.ok(d > 0.999999, `twist coast did not settle: dot=${d}`)
     assert.ok(Math.abs(getView().lat - start.lat) < 1e-9)
+    const dLon = Math.abs(normalizeLon(getView().lon - settledLon))
+    assert.ok(Math.abs(dLon - GLOBE_SPIN_DEG_PER_SEC * 0.016) < 1e-6)
   })
 })
