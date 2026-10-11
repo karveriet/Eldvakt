@@ -1,5 +1,5 @@
 import { LOCAL_AT } from '../geo/seat.ts'
-import { getView, nudge, setGaze } from './view-store.ts'
+import { getView, setGaze } from './view-store.ts'
 
 let listening = false
 let lastOrientation: { alpha: number | null; beta: number; gamma: number } | null = null
@@ -7,8 +7,6 @@ let gyroBase: {
   alpha: number | null
   beta: number
   gamma: number
-  lat: number
-  lon: number
   yaw: number
   pitch: number
 } | null = null
@@ -47,20 +45,29 @@ export async function enableMotion() {
 export function noteDrag() {
   if (!lastOrientation) return
   const view = getView()
+  if (view.seat < LOCAL_AT) return
   gyroBase = {
     ...lastOrientation,
-    lat: view.lat,
-    lon: view.lon,
     yaw: view.yaw,
     pitch: view.pitch,
   }
 }
 
+/**
+ * Gyro is only for first-person gaze beside a fire.
+ * Out in orbit, pinch and swipe move the camera — orientation stays off.
+ */
 function onOrientation(event: DeviceOrientationEvent) {
   if (event.beta == null || event.gamma == null) return
   const view = getView()
   const local = view.seat >= LOCAL_AT
   lastOrientation = { alpha: event.alpha, beta: event.beta, gamma: event.gamma }
+
+  if (!local) {
+    wasLocal = false
+    gyroBase = null
+    return
+  }
 
   if (view.traveling) {
     wasTraveling = true
@@ -68,21 +75,18 @@ function onOrientation(event: DeviceOrientationEvent) {
   }
 
   // Fresh baseline when travel ends or when you first sit beside the fire.
-  if (!gyroBase || wasTraveling || (local && !wasLocal)) {
+  if (!gyroBase || wasTraveling || !wasLocal) {
     wasTraveling = false
-    wasLocal = local
+    wasLocal = true
     gyroBase = {
       alpha: event.alpha,
       beta: event.beta,
       gamma: event.gamma,
-      lat: view.lat,
-      lon: view.lon,
       yaw: view.yaw,
       pitch: view.pitch,
     }
     return
   }
-  wasLocal = local
 
   const dBeta = event.beta - gyroBase.beta
   const dGamma = event.gamma - gyroBase.gamma
@@ -91,28 +95,19 @@ function onOrientation(event: DeviceOrientationEvent) {
       alpha: event.alpha,
       beta: event.beta,
       gamma: event.gamma,
-      lat: view.lat,
-      lon: view.lon,
       yaw: view.yaw,
       pitch: view.pitch,
     }
     return
   }
 
-  if (local) {
-    // First person: turn with compass heading (alpha); tilt for pitch.
-    // Gamma fills in when alpha is missing (some desktops / denied compass).
-    const dYaw =
-      event.alpha != null && gyroBase.alpha != null
-        ? -deltaDegrees(gyroBase.alpha, event.alpha)
-        : dGamma
-    setGaze(gyroBase.yaw + dYaw * 1.05, gyroBase.pitch + dBeta * 0.95)
-    return
-  }
-
-  const lat = Math.max(-78, Math.min(78, gyroBase.lat + dBeta * 0.9))
-  const lon = gyroBase.lon + dGamma * 0.9
-  nudge(lat - view.lat, lon - view.lon)
+  // Yaw: compass heading when available, else roll.
+  const dYaw =
+    event.alpha != null && gyroBase.alpha != null
+      ? -deltaDegrees(gyroBase.alpha, event.alpha)
+      : dGamma
+  // Pitch: invert beta so tilting the phone down looks down.
+  setGaze(gyroBase.yaw + dYaw * 1.05, gyroBase.pitch - dBeta * 0.95)
 }
 
 function deltaDegrees(from: number, to: number): number {
