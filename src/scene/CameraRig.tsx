@@ -7,6 +7,7 @@ import {
 import { LOCAL_AT, SIT_LOOK_M, intimateMeters, orbitApproach } from '../geo/seat.ts'
 import { globeSeat } from './globe-seat.ts'
 import { getView } from './view-store.ts'
+import { worldFrameOffset } from './world-frame.ts'
 
 const look = new THREE.Vector3()
 const eye = new THREE.Vector3()
@@ -19,14 +20,13 @@ const camPos = new THREE.Vector3()
 
 export function CameraRig() {
   const camera = useThree((state) => state.camera)
-  const scene = useThree((state) => state.scene)
-  // Priority -2: rebase before hearths/globe sample world matrices.
+  // Priority -2: place camera / world offset before other scene ticks.
   useFrame(() => {
     const view = getView()
     const intimate = intimateMeters(view.seat)
     if (intimate.local) {
       // Beside-fire uses its own meter frame; keep the planet unshifted.
-      scene.position.set(0, 0, 0)
+      worldFrameOffset.set(0, 0, 0)
       placeBeside(camera, intimate.back, intimate.eye, view.yaw, view.pitch)
       fit(camera, 0.05, 800)
       globeSeat.value = 1
@@ -38,7 +38,8 @@ export function CameraRig() {
     camPos.set(position.x, position.y, position.z)
     const alt = altitudeAboveSurface(camPos.length())
     // Far out: look past the limb. Close in: look at the surface underfoot.
-    const toward = u > 0 ? 0.22 + 0.74 * u : Math.min(0.999999, Math.max(0.22, 1 - Math.min(alt, 2) * 0.35))
+    const toward =
+      u > 0 ? 0.22 + 0.74 * u : Math.min(0.999999, Math.max(0.22, 1 - Math.min(alt, 2) * 0.35))
     look.set(radial.x * toward, radial.y * toward, radial.z * toward)
     radialUp.set(radial.x, radial.y, radial.z)
     // Prefer the grab/coast frame so a pole-crossing flick does not twist
@@ -55,16 +56,16 @@ export function CameraRig() {
     up.normalize()
     if (u > 0) up.lerp(radialUp, u).normalize()
 
-    // Meter-scale height: park the camera at the origin and slide the world,
-    // so float32 depth does not collapse the surface into the eye.
+    // Meter-scale height: slide the planet group under a camera parked at the
+    // origin. Never translate the scene root — the camera lives there too.
     const rebase = alt < VIEW_REBASE_ALT
     if (rebase) {
-      scene.position.set(-camPos.x, -camPos.y, -camPos.z)
+      worldFrameOffset.set(-camPos.x, -camPos.y, -camPos.z)
       camera.position.set(0, 0, 0)
       camera.up.copy(up)
       camera.lookAt(look.x - camPos.x, look.y - camPos.y, look.z - camPos.z)
     } else {
-      scene.position.set(0, 0, 0)
+      worldFrameOffset.set(0, 0, 0)
       camera.position.copy(camPos)
       camera.up.copy(up)
       camera.lookAt(look)

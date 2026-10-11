@@ -8,6 +8,7 @@ import { Hearths } from './Hearths.tsx'
 import { Look } from './Look.tsx'
 import { Luminaries } from './Luminaries.tsx'
 import { Stars } from './Stars.tsx'
+import { WorldFrame } from './WorldFrame.tsx'
 import { tickView } from './view-store.ts'
 
 export function Scene() {
@@ -15,11 +16,13 @@ export function Scene() {
     <>
       <color attach="background" args={['#04070c']} />
       <ViewClock />
-      <Aurora />
-      <Stars />
-      <Luminaries />
-      <Globe />
-      <Hearths />
+      <WorldFrame>
+        <Aurora />
+        <Stars />
+        <Luminaries />
+        <Globe />
+        <Hearths />
+      </WorldFrame>
       <Beside />
       <Glints />
       <CameraRig />
