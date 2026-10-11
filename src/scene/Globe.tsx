@@ -6,44 +6,68 @@ import { getView } from './view-store.ts'
 import { createLandTexture } from './land-texture.ts'
 import { globeSeat } from './globe-seat.ts'
 
+/**
+ * Bounding shell + analytic unit-sphere hit.
+ * Limb stays round at every altitude — no faceted mesh up close.
+ */
 const VERT = /* glsl */ `
   #include <common>
-  #include <logdepthbuf_pars_vertex>
-  varying vec2 vUv;
-  varying vec3 vNormal;
   varying vec3 vWorld;
   void main() {
-    vUv = uv;
-    vNormal = normalize(mat3(modelMatrix) * normal);
     vec4 world = modelMatrix * vec4(position, 1.0);
     vWorld = world.xyz;
     gl_Position = projectionMatrix * viewMatrix * world;
-    #include <logdepthbuf_vertex>
   }
 `
 
 const FRAG = /* glsl */ `
   #include <common>
-  #include <logdepthbuf_pars_fragment>
+  #if defined( USE_LOGARITHMIC_DEPTH_BUFFER )
+    uniform float logDepthBufFC;
+  #endif
   uniform sampler2D uLand;
   uniform float uSeat;
-  varying vec2 vUv;
-  varying vec3 vNormal;
   varying vec3 vWorld;
+
   void main() {
-    #include <logdepthbuf_fragment>
-    float land = texture2D(uLand, vUv).r;
-    // Lifted so the night globe still reads on a phone against space.
+    vec3 ro = cameraPosition;
+    vec3 rd = normalize(vWorld - cameraPosition);
+    float b = dot(ro, rd);
+    float c = dot(ro, ro) - 1.0;
+    float h = b * b - c;
+    if (h < 0.0) discard;
+    float t = -b - sqrt(h);
+    if (t < 1e-5) {
+      t = -b + sqrt(h);
+      if (t < 1e-5) discard;
+    }
+    vec3 p = ro + rd * t;
+    vec3 n = normalize(p);
+
+    float lon = atan(p.x, p.z);
+    float lat = asin(clamp(p.y, -1.0, 1.0));
+    vec2 uv = vec2(lon / (2.0 * 3.14159265) + 0.5, 0.5 - lat / 3.14159265);
+    float land = texture2D(uLand, uv).r;
+
     vec3 ocean = vec3(0.028, 0.040, 0.058);
     vec3 earth = vec3(0.11, 0.090, 0.068);
     float coast = smoothstep(0.2, 0.8, land);
     vec3 col = mix(ocean, earth, coast);
-    float shade = 0.006 * sin(vUv.x * 70.0 + vUv.y * 36.0);
+    float shade = 0.006 * sin(uv.x * 70.0 + uv.y * 36.0);
     col += shade * coast;
-    vec3 viewDir = normalize(cameraPosition - vWorld);
-    float fres = pow(1.0 - max(dot(normalize(vNormal), viewDir), 0.0), 2.4);
+
+    vec3 viewDir = normalize(cameraPosition - p);
+    float fres = pow(1.0 - max(dot(n, viewDir), 0.0), 2.4);
     col += vec3(0.16, 0.22, 0.18) * fres * 0.22 * (1.0 - uSeat);
     col += vec3(0.22, 0.10, 0.04) * fres * 0.18 * (1.0 - uSeat);
+
+    vec4 clip = projectionMatrix * viewMatrix * vec4(p, 1.0);
+    #if defined( USE_LOGARITHMIC_DEPTH_BUFFER )
+      gl_FragDepth = log2(max(1e-6, 1.0 + clip.w)) * logDepthBufFC * 0.5;
+    #else
+      gl_FragDepth = (clip.z / clip.w) * 0.5 + 0.5;
+    #endif
+
     gl_FragColor = vec4(col, 1.0);
   }
 `
@@ -57,6 +81,7 @@ export function Globe() {
         uniforms: { uLand: { value: texture }, uSeat: globeSeat },
         vertexShader: VERT,
         fragmentShader: FRAG,
+        side: THREE.DoubleSide,
       }),
     [texture],
   )
@@ -68,7 +93,7 @@ export function Globe() {
   return (
     <group ref={root}>
       <mesh material={material}>
-        <sphereGeometry args={[1, 128, 96]} />
+        <sphereGeometry args={[1.08, 64, 48]} />
       </mesh>
     </group>
   )

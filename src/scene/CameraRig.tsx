@@ -1,5 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { altitudeAboveSurface } from '../fire/view-distance.ts'
 import { LOCAL_AT, SIT_LOOK_M, intimateMeters, orbitApproach } from '../geo/seat.ts'
 import { globeSeat } from './globe-seat.ts'
 import { getView } from './view-store.ts'
@@ -27,7 +28,10 @@ export function CameraRig() {
     const radial = orbitApproach(view.lat, view.lon, 1, 0)
     const u = Math.min(1, view.seat / LOCAL_AT)
     camera.position.set(position.x, position.y, position.z)
-    const toward = 0.22 + 0.74 * u
+    // Far out: look past the limb. Close in: look at the surface underfoot
+    // so the near plane and the ground stay stable.
+    const alt = altitudeAboveSurface(Math.hypot(position.x, position.y, position.z))
+    const toward = u > 0 ? 0.22 + 0.74 * u : Math.min(0.96, Math.max(0.22, 1 - alt * 0.35))
     look.set(radial.x * toward, radial.y * toward, radial.z * toward)
     radialUp.set(radial.x, radial.y, radial.z)
     // Prefer the grab/coast frame so a pole-crossing flick does not twist
@@ -45,7 +49,10 @@ export function CameraRig() {
     if (u > 0) up.lerp(radialUp, u).normalize()
     camera.up.copy(up)
     camera.lookAt(look)
-    fit(camera, 0.05, 80)
+    // Near plane tracks altitude so the surface never clips or flickers.
+    const near = Math.min(0.05, Math.max(1e-5, alt * 0.2))
+    const far = Math.max(80, alt * 200 + 40)
+    fit(camera, near, far)
     globeSeat.value = u
   })
   return null

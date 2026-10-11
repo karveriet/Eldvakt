@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { getRoomSnapshot, send } from '../net/room.ts'
+import { VIEW_SIT_ZOOM } from '../fire/view-distance.ts'
+import { angularDistance } from '../geo/sphere.ts'
 import { approachCluster } from './approach.ts'
 import { gesture } from './gesture.ts'
 import { pickTargets } from './hearth-layer.ts'
@@ -13,6 +15,7 @@ import {
   flingTwist,
   getView,
   nudge,
+  settleBy,
   stopOrbitSpin,
   twistOrbit,
   zoomBy,
@@ -117,7 +120,10 @@ export function Look() {
         const pair = twoFinger()
         if (!pair) return
         const free = !getRoomSnapshot().self.seatedFireId && getView().seat < LOCAL_AT
-        if (free && pinchDist > 0) zoomBy(pinchDist / pair.dist)
+        if (free && pinchDist > 0) {
+          zoomBy(pinchDist / pair.dist)
+          offerSitFromZoom()
+        }
         if (free && Number.isFinite(pinchAngle)) {
           let delta = pair.angle - pinchAngle
           if (delta > Math.PI) delta -= Math.PI * 2
@@ -208,6 +214,7 @@ export function Look() {
       event.preventDefault()
       stopOrbitSpin()
       zoomBy(Math.exp(event.deltaY * 0.0011))
+      offerSitFromZoom()
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => {
@@ -219,4 +226,20 @@ export function Look() {
   }, [camera, gl])
 
   return null
+}
+
+/** Pinch onto a fire under the look point — same seat journey as Sit. */
+function offerSitFromZoom() {
+  const view = getView()
+  if (view.traveling || view.seat > 0.02) return
+  if (view.distance > VIEW_SIT_ZOOM + 0.08) return
+  if (view.focusId) return
+  const look = { lat: view.lat, lon: view.lon }
+  let best: { id: string; lat: number; lon: number; arc: number } | null = null
+  for (const fire of getRoomSnapshot().fires) {
+    const arc = angularDistance(look, fire)
+    if (arc > 0.02) continue
+    if (!best || arc < best.arc) best = { id: fire.id, lat: fire.lat, lon: fire.lon, arc }
+  }
+  if (best) settleBy(best.lat, best.lon, best.id)
 }

@@ -8,6 +8,7 @@ import {
   VIEW_FAR,
   VIEW_MAX,
   VIEW_MIN,
+  VIEW_SIT_ZOOM,
 } from '../fire/view-distance.ts'
 
 export type View = { lat: number; lon: number; distance: number }
@@ -248,7 +249,17 @@ export function setGaze(yaw: number, pitch: number) {
 
 export function zoomBy(factor: number) {
   if (state.traveling || state.seat > 0.02) return
-  state.distance = clamp(state.distance * factor, VIEW_MIN, VIEW_MAX)
+  if (!Number.isFinite(factor) || factor <= 0) return
+  // Pinch onto a focused fire: last stretch is the existing seat journey.
+  if (factor < 1 && state.focusId && state.distance <= VIEW_SIT_ZOOM + 0.08) {
+    settleBy(state.lat, state.lon, state.focusId)
+    return
+  }
+  // Scale altitude, not radius — near the surface radius≈1 so radius*=factor jumps.
+  const altMin = VIEW_MIN - 1
+  const altMax = VIEW_MAX - 1
+  const alt = Math.max(1e-6, state.distance - 1)
+  state.distance = 1 + clamp(alt * factor, altMin, altMax)
   publish()
 }
 

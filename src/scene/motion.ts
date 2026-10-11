@@ -102,10 +102,11 @@ function onOrientation(event: DeviceOrientationEvent) {
   }
 
   // Yaw: compass heading when available, else roll.
+  // Positive alpha / gamma → look right; flip so turning the phone left looks left.
   const dYaw =
     event.alpha != null && gyroBase.alpha != null
-      ? -deltaDegrees(gyroBase.alpha, event.alpha)
-      : dGamma
+      ? deltaDegrees(gyroBase.alpha, event.alpha)
+      : -dGamma
   // Pitch: invert beta so tilting the phone down looks down.
   setGaze(gyroBase.yaw + dYaw * 1.05, gyroBase.pitch - dBeta * 0.95)
 }

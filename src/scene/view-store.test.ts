@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { normalizeLon } from '../geo/cell.ts'
 import { angularDistance } from '../geo/sphere.ts'
-import { VIEW_FAR } from '../fire/view-distance.ts'
+import { VIEW_FAR, VIEW_MAX, VIEW_MIN } from '../fire/view-distance.ts'
 import {
   beginOrbitGrab,
   flingOrbit,
@@ -13,6 +13,7 @@ import {
   tickView,
   travelTo,
   twistOrbit,
+  zoomBy,
 } from './view-store.ts'
 
 function hardLook(lat: number, lon: number) {
@@ -197,6 +198,28 @@ describe('orbit view', () => {
       before.orbitUp!.y * after.orbitUp!.y +
       before.orbitUp!.z * after.orbitUp!.z
     assert.ok(d > 0.98, `full turn should restore camera-up: dot=${d}`)
+  })
+
+  it('pinches altitude continuously down near the surface', () => {
+    hardLook(20, 10)
+    assert.ok(getView().distance > 3)
+    for (let i = 0; i < 80; i++) zoomBy(0.85)
+    const low = getView().distance
+    assert.ok(low <= VIEW_MIN + 1e-9, `distance ${low}`)
+    assert.ok(low >= VIEW_MIN - 1e-9)
+    // Near the surface, altitude scaling still moves smoothly before the floor.
+    hardLook(20, 10)
+    travelTo(20, 10, 1.02, null, 0)
+    const t0 = 7_000_000
+    tickView(t0)
+    tickView(t0 + 60_000)
+    const before = getView().distance
+    zoomBy(0.5)
+    const after = getView().distance
+    assert.ok(after < before)
+    assert.ok(after > 1)
+    zoomBy(2)
+    assert.ok(getView().distance <= VIEW_MAX + 1e-9)
   })
 
   it('coasts a twist release then settles without moving the look point', () => {
