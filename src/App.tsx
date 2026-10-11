@@ -2,7 +2,7 @@ import { Canvas } from '@react-three/fiber'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import * as THREE from 'three'
 import { hearthAudio } from './audio/hearth.ts'
-import { hasCharacterTint, subscribeTint } from './character/tint.ts'
+import { clearTint, hasCharacterTint, subscribeTint } from './character/tint.ts'
 import { connectRoom, getRoomSnapshot, subscribeRoom } from './net/room.ts'
 import { Scene } from './scene/Scene.tsx'
 import { CharacterTint } from './ui/CharacterTint.tsx'
@@ -10,13 +10,38 @@ import { Controls } from './ui/Controls.tsx'
 
 export function App() {
   const tinted = useSyncExternalStore(subscribeTint, hasCharacterTint, () => false)
-  const [ready, setReady] = useState(() => hasCharacterTint())
+  const [ready, setReady] = useState(() => {
+    if (wantsRetint()) {
+      clearTint()
+      return false
+    }
+    return hasCharacterTint()
+  })
 
   if (!ready && !tinted) {
-    return <CharacterTint onChosen={() => setReady(true)} />
+    return (
+      <CharacterTint
+        onChosen={() => {
+          // Drop ?tint from the URL so a refresh keeps the chosen prägel.
+          if (wantsRetint()) {
+            const url = new URL(location.href)
+            url.searchParams.delete('tint')
+            url.searchParams.delete('retint')
+            history.replaceState(null, '', url.pathname + url.search + url.hash)
+          }
+          setReady(true)
+        }}
+      />
+    )
   }
 
   return <Night />
+}
+
+function wantsRetint(): boolean {
+  if (typeof location === 'undefined') return false
+  const params = new URLSearchParams(location.search)
+  return params.has('tint') || params.has('retint')
 }
 
 function Night() {

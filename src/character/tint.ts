@@ -22,6 +22,11 @@ export function writeTint(tint: number): number {
   return value
 }
 
+export function clearTint() {
+  localStorage.removeItem(KEY)
+  publish()
+}
+
 export function characterTint(): number {
   return readTint() ?? 0.08
 }
