@@ -249,6 +249,24 @@ export function zoomBy(factor: number) {
   publish()
 }
 
+/**
+ * Two-finger twist: roll the camera frame around the look radial.
+ * Positive degrees match a clockwise finger twist on screen (y-down).
+ */
+export function twistOrbit(degrees: number) {
+  if (state.traveling || state.seat >= LOCAL_AT) return
+  if (!Number.isFinite(degrees) || Math.abs(degrees) < 1e-6) return
+  stopOrbitSpin()
+  const pos = latLonToVector(state.lat, state.lon, 1)
+  const { right } = orbitFrame(pos)
+  const angle = (degrees * Math.PI) / 180
+  // +pos points toward the camera; positive rotation around it is clockwise
+  // when looking at the globe from outside — same sense as the finger twist.
+  lastRight = normalize(projectPerp(rotateAround(right, pos, angle), pos))
+  haveRight = true
+  orbitUp = normalize(cross(pos, lastRight))
+}
+
 export function tickView(now: number) {
   const dt =
     lastTick == null ? 0 : Math.min(0.05, Math.max(0, (now - lastTick) / 1000))

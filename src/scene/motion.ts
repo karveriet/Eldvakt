@@ -55,7 +55,7 @@ export function noteDrag() {
 
 /**
  * Gyro is only for first-person gaze beside a fire.
- * Out in orbit, pinch and swipe move the camera — orientation stays off.
+ * Out in orbit, pinch, twist, and swipe move the camera — orientation stays off.
  */
 function onOrientation(event: DeviceOrientationEvent) {
   if (event.beta == null || event.gamma == null) return

@@ -13,6 +13,7 @@ import {
   getView,
   nudge,
   stopOrbitSpin,
+  twistOrbit,
   zoomBy,
 } from './view-store.ts'
 
@@ -30,10 +31,22 @@ export function Look() {
     let dragging = false
     let holding = false
     let pinchDist = 0
+    let pinchAngle = Number.NaN
     const pinches = new Map<number, { x: number; y: number }>()
     let lastMoveAt = 0
     let velLat = 0
     let velLon = 0
+
+    const twoFinger = () => {
+      const points = [...pinches.values()]
+      if (points.length < 2) return null
+      const [a, b] = points
+      return {
+        dist: Math.hypot(a.x - b.x, a.y - b.y),
+        // Screen y grows downward; clockwise twist increases this angle.
+        angle: Math.atan2(b.y - a.y, b.x - a.x),
+      }
+    }
 
     const pick = (x: number, y: number) => {
       const rect = el.getBoundingClientRect()
@@ -63,6 +76,10 @@ export function Look() {
         holding = false
         gesture.holdFireId = null
         stopOrbitSpin()
+        if (getView().seat < LOCAL_AT) beginOrbitGrab()
+        const pair = twoFinger()
+        pinchDist = pair?.dist ?? 0
+        pinchAngle = pair?.angle ?? Number.NaN
         return
       }
       down = { x: event.clientX, y: event.clientY, pointerId: event.pointerId }
@@ -92,11 +109,20 @@ export function Look() {
         point.y = event.clientY
       }
       if (pinches.size === 2) {
-        const [a, b] = [...pinches.values()]
-        const dist = Math.hypot(a.x - b.x, a.y - b.y)
-        if (pinchDist > 0 && !getRoomSnapshot().self.seatedFireId) zoomBy(pinchDist / dist)
-        pinchDist = dist
+        const pair = twoFinger()
+        if (!pair) return
+        const free = !getRoomSnapshot().self.seatedFireId && getView().seat < LOCAL_AT
+        if (free && pinchDist > 0) zoomBy(pinchDist / pair.dist)
+        if (free && Number.isFinite(pinchAngle)) {
+          let delta = pair.angle - pinchAngle
+          if (delta > Math.PI) delta -= Math.PI * 2
+          if (delta < -Math.PI) delta += Math.PI * 2
+          twistOrbit((delta * 180) / Math.PI)
+        }
+        pinchDist = pair.dist
+        pinchAngle = pair.angle
         stopOrbitSpin()
+        noteDrag()
         return
       }
       if (!down || event.pointerId !== down.pointerId) return
@@ -134,7 +160,10 @@ export function Look() {
 
     const onUp = (event: PointerEvent) => {
       pinches.delete(event.pointerId)
-      if (pinches.size < 2) pinchDist = 0
+      if (pinches.size < 2) {
+        pinchDist = 0
+        pinchAngle = Number.NaN
+      }
       if (!down || event.pointerId !== down.pointerId) return
       if (holding && gesture.holdFireId) {
         const intensity = Math.max(0, Math.min(1, (performance.now() - gesture.holdStarted) / 1400))

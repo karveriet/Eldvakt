@@ -11,6 +11,7 @@ import {
   resetOrbitFrame,
   tickView,
   travelTo,
+  twistOrbit,
 } from './view-store.ts'
 
 function hardLook(lat: number, lon: number) {
@@ -159,5 +160,41 @@ describe('orbit view', () => {
       before.orbitUp!.y * after.orbitUp!.y +
       before.orbitUp!.z * after.orbitUp!.z
     assert.ok(d > 0.98, `camera-up snapped on grab: dot=${d}`)
+  })
+
+  it('twists camera-up without moving the look point', () => {
+    hardLook(15, -40)
+    // Tiny nudge builds the world-north grab frame so we can compare ups.
+    nudge(0.01, 0)
+    const before = getView()
+    assert.ok(before.orbitUp)
+    twistOrbit(35)
+    const after = getView()
+    assert.ok(Math.abs(after.lat - before.lat) < 1e-6)
+    assert.ok(Math.abs(normalizeLon(after.lon - before.lon)) < 1e-6)
+    assert.ok(after.orbitUp)
+    const d =
+      before.orbitUp!.x * after.orbitUp!.x +
+      before.orbitUp!.y * after.orbitUp!.y +
+      before.orbitUp!.z * after.orbitUp!.z
+    assert.ok(d < 0.92, `camera-up barely moved: dot=${d}`)
+    assert.ok(d > 0.7, `camera-up jumped too far for 35°: dot=${d}`)
+  })
+
+  it('keeps look fixed after a full twist turn', () => {
+    hardLook(5, 80)
+    nudge(0.01, 0)
+    const before = getView()
+    assert.ok(before.orbitUp)
+    for (let i = 0; i < 12; i++) twistOrbit(30)
+    const after = getView()
+    assert.ok(Math.abs(after.lat - before.lat) < 1e-6)
+    assert.ok(Math.abs(normalizeLon(after.lon - before.lon)) < 1e-6)
+    assert.ok(after.orbitUp)
+    const d =
+      before.orbitUp!.x * after.orbitUp!.x +
+      before.orbitUp!.y * after.orbitUp!.y +
+      before.orbitUp!.z * after.orbitUp!.z
+    assert.ok(d > 0.98, `full turn should restore camera-up: dot=${d}`)
   })
 })
