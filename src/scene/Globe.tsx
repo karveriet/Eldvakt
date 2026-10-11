@@ -33,9 +33,9 @@ const FRAG = /* glsl */ `
   void main() {
     #include <logdepthbuf_fragment>
     float land = texture2D(uLand, vUv).r;
-    // Slightly lifted so the night globe still reads on a phone against space.
-    vec3 ocean = vec3(0.018, 0.028, 0.042);
-    vec3 earth = vec3(0.082, 0.068, 0.052);
+    // Lifted so the night globe still reads on a phone against space.
+    vec3 ocean = vec3(0.028, 0.040, 0.058);
+    vec3 earth = vec3(0.11, 0.090, 0.068);
     float coast = smoothstep(0.2, 0.8, land);
     vec3 col = mix(ocean, earth, coast);
     float shade = 0.006 * sin(vUv.x * 70.0 + vUv.y * 36.0);
