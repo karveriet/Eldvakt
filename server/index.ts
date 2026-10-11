@@ -136,7 +136,7 @@ async function listen() {
     const { createServer: createViteServer } = await import('vite')
     const vite = await createViteServer({
       root,
-      server: { middlewareMode: true, hmr: false },
+      server: { middlewareMode: true, hmr: false, allowedHosts: true },
       appType: 'spa',
     })
     server.on('request', (req, res) => {
