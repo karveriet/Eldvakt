@@ -9,27 +9,22 @@ import { CharacterTint } from './ui/CharacterTint.tsx'
 import { Controls } from './ui/Controls.tsx'
 
 export function App() {
+  const forceTint = wantsRetint()
   const tinted = useSyncExternalStore(subscribeTint, hasCharacterTint, () => false)
-  const [ready, setReady] = useState(() => {
-    if (wantsRetint()) {
-      clearTint()
-      return false
-    }
-    return hasCharacterTint()
-  })
+  const [picked, setPicked] = useState(false)
 
-  if (!ready && !tinted) {
+  useEffect(() => {
+    if (forceTint) clearTint()
+  }, [forceTint])
+
+  // ?tint must show the picker even if a prägel was already stored this session.
+  const showPicker = forceTint ? !picked : !tinted
+  if (showPicker) {
     return (
       <CharacterTint
         onChosen={() => {
-          // Drop ?tint from the URL so a refresh keeps the chosen prägel.
-          if (wantsRetint()) {
-            const url = new URL(location.href)
-            url.searchParams.delete('tint')
-            url.searchParams.delete('retint')
-            history.replaceState(null, '', url.pathname + url.search + url.hash)
-          }
-          setReady(true)
+          if (forceTint) dropRetintQuery()
+          setPicked(true)
         }}
       />
     )
@@ -42,6 +37,13 @@ function wantsRetint(): boolean {
   if (typeof location === 'undefined') return false
   const params = new URLSearchParams(location.search)
   return params.has('tint') || params.has('retint')
+}
+
+function dropRetintQuery() {
+  const url = new URL(location.href)
+  url.searchParams.delete('tint')
+  url.searchParams.delete('retint')
+  history.replaceState(null, '', url.pathname + url.search + url.hash)
 }
 
 function Night() {
