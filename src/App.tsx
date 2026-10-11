@@ -1,12 +1,25 @@
 import { Canvas } from '@react-three/fiber'
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import * as THREE from 'three'
 import { hearthAudio } from './audio/hearth.ts'
+import { hasCharacterTint, subscribeTint } from './character/tint.ts'
 import { connectRoom, getRoomSnapshot, subscribeRoom } from './net/room.ts'
 import { Scene } from './scene/Scene.tsx'
+import { CharacterTint } from './ui/CharacterTint.tsx'
 import { Controls } from './ui/Controls.tsx'
 
 export function App() {
+  const tinted = useSyncExternalStore(subscribeTint, hasCharacterTint, () => false)
+  const [ready, setReady] = useState(() => hasCharacterTint())
+
+  if (!ready && !tinted) {
+    return <CharacterTint onChosen={() => setReady(true)} />
+  }
+
+  return <Night />
+}
+
+function Night() {
   const connected = useSyncExternalStore(
     subscribeRoom,
     () => getRoomSnapshot().connected,

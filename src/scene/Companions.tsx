@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { hslToRgb, tintToBody, tintToGlow } from '../character/tint.ts'
 import { LOCAL_AT } from '../geo/seat.ts'
 import { getRoomSnapshot } from '../net/room.ts'
 import { getView } from './view-store.ts'
@@ -21,9 +22,11 @@ const ANGLE_LERP = 2.2
 const STREAK_S = 1.55
 const TRAIL_LEN = 14
 const TRAIL_POINTS = MAX * TRAIL_LEN
+const DEFAULT_TINT = 0.08
 
 type Soul = {
-  sprite: THREE.Sprite
+  core: THREE.Sprite
+  glow: THREE.Sprite
   phase: number
   bob: number
   sway: number
@@ -34,6 +37,7 @@ type Soul = {
   hasAngle: boolean
   mode: 'seat' | 'streak'
   streakT: number
+  tint: number
   x: number
   y: number
   z: number
@@ -55,24 +59,41 @@ export function Companions() {
   useLayoutEffect(() => {
     const group = root.current
     if (!group) return
-    const map = starTexture()
+    const coreMap = hardTexture()
+    const glowMap = softTexture()
     const list: Soul[] = []
     for (let i = 0; i < MAX; i++) {
-      const material = new THREE.SpriteMaterial({
-        map,
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        color: new THREE.Color('#ffe4b5'),
-        opacity: 0,
-      })
-      const sprite = new THREE.Sprite(material)
-      sprite.visible = false
-      sprite.renderOrder = 6
-      sprite.scale.setScalar(0.12)
-      group.add(sprite)
+      const glow = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: glowMap,
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          color: new THREE.Color('#ffe4b5'),
+          opacity: 0,
+        }),
+      )
+      glow.visible = false
+      glow.renderOrder = 5
+
+      const core = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: coreMap,
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.NormalBlending,
+          color: new THREE.Color('#222'),
+          opacity: 0,
+        }),
+      )
+      core.visible = false
+      core.renderOrder = 6
+
+      group.add(glow)
+      group.add(core)
       list.push({
-        sprite,
+        core,
+        glow,
         phase: i * 1.618,
         bob: 0.48 + (i % 4) * 0.05,
         sway: 0.37 + (i % 5) * 0.04,
@@ -82,6 +103,7 @@ export function Companions() {
         hasAngle: false,
         mode: 'seat',
         streakT: 0,
+        tint: DEFAULT_TINT,
         x: 0,
         y: 0,
         z: 0,
@@ -115,12 +137,15 @@ export function Companions() {
 
     return () => {
       for (const soul of list) {
-        soul.sprite.material.dispose()
-        group.remove(soul.sprite)
+        soul.core.material.dispose()
+        soul.glow.material.dispose()
+        group.remove(soul.core)
+        group.remove(soul.glow)
       }
       points.geometry.dispose()
       ;(points.material as THREE.Material).dispose()
-      map.dispose()
+      coreMap.dispose()
+      glowMap.dispose()
       group.clear()
     }
   }, [])
@@ -142,6 +167,7 @@ export function Companions() {
 
     const room = getRoomSnapshot()
     const fire = room.fires.find((item) => item.id === view.focusId)
+    const hues = fire?.hues ?? []
     const count = Math.min(MAX, fire?.seatedCount ?? 0)
     const fireId = fire?.id ?? null
     const t = state.clock.elapsedTime
@@ -156,6 +182,7 @@ export function Companions() {
         resetSoul(soul)
         soul.appear = i < count ? 1 : 0
         soul.mode = 'seat'
+        soul.tint = hues[i] ?? DEFAULT_TINT
       }
     } else if (count > prevCount.current) {
       for (let i = prevCount.current; i < count; i++) {
@@ -164,9 +191,9 @@ export function Companions() {
         soul.appear = 0
         soul.hasAngle = false
         soul.mode = 'seat'
+        soul.tint = hues[i] ?? DEFAULT_TINT
       }
     } else if (count < prevCount.current) {
-      // Highest seats leave first — each becomes a shooting star.
       for (let i = count; i < prevCount.current; i++) {
         const soul = souls.current[i]
         if (soul.mode === 'seat' && soul.appear > 0.15) launchStreak(soul)
@@ -179,23 +206,22 @@ export function Companions() {
 
     for (let i = 0; i < MAX; i++) {
       const soul = souls.current[i]
-      const sprite = soul.sprite
       const wanted = Boolean(fire) && i < count && soul.mode === 'seat'
+      if (wanted) soul.tint = hues[i] ?? soul.tint
 
       if (soul.mode === 'streak') {
-        stepStreak(soul, sprite, dt)
+        stepStreak(soul, dt)
         continue
       }
 
       if (wanted) {
         soul.appear = Math.min(1, soul.appear + dt / FADE_IN_S)
       } else if (soul.appear > 0) {
-        // Unexpected drop (e.g. fire gone): still leave as a star.
         launchStreak(soul)
-        stepStreak(soul, sprite, dt)
+        stepStreak(soul, dt)
         continue
       } else {
-        sprite.visible = false
+        hideSoul(soul)
         continue
       }
 
@@ -215,19 +241,15 @@ export function Companions() {
       soul.x = Math.sin(soul.angle) * radius + floatX * 0.35
       soul.y = HOVER_M + floatY
       soul.z = Math.cos(soul.angle) * radius + floatZ
-      sprite.position.set(soul.x, soul.y, soul.z)
 
       const flicker =
         0.68 +
         0.2 * Math.sin(t * 4.7 + soul.phase) +
         0.12 * Math.sin(t * 9.3 + soul.phase * 2.2)
       const pulse = Math.max(0.4, Math.min(1, flicker))
-      const material = sprite.material
-      material.color.set('#ffe4b5')
       const grow = 0.12 + 0.88 * born
-      material.opacity = pulse * (0.55 + 0.45 * arrive) * born
-      sprite.scale.setScalar((0.09 + 0.045 * pulse) * grow)
-      sprite.visible = true
+      const fade = pulse * (0.55 + 0.45 * arrive) * born
+      paintSoul(soul, fade, grow, pulse)
     }
 
     writeTrails(souls.current, trailPos.current, trailPoints.current)
@@ -236,13 +258,33 @@ export function Companions() {
   return <group ref={root} visible={false} />
 }
 
+function paintSoul(soul: Soul, fade: number, grow: number, pulse: number) {
+  const body = hslToRgb(tintToBody(soul.tint))
+  const halo = hslToRgb(tintToGlow(soul.tint))
+  soul.core.position.set(soul.x, soul.y, soul.z)
+  soul.glow.position.set(soul.x, soul.y, soul.z)
+  soul.core.material.color.setRGB(body.r, body.g, body.b)
+  soul.glow.material.color.setRGB(halo.r, halo.g, halo.b)
+  soul.core.material.opacity = Math.min(1, 0.55 + 0.45 * fade)
+  soul.glow.material.opacity = fade
+  soul.core.scale.setScalar((0.055 + 0.03 * pulse) * grow)
+  soul.glow.scale.setScalar((0.14 + 0.06 * pulse) * grow)
+  soul.core.visible = true
+  soul.glow.visible = true
+}
+
+function hideSoul(soul: Soul) {
+  soul.core.visible = false
+  soul.glow.visible = false
+}
+
 function resetSoul(soul: Soul) {
   soul.appear = 0
   soul.hasAngle = false
   soul.mode = 'seat'
   soul.streakT = 0
   soul.trail.length = 0
-  soul.sprite.visible = false
+  hideSoul(soul)
 }
 
 function launchStreak(soul: Soul) {
@@ -251,19 +293,14 @@ function launchStreak(soul: Soul) {
   soul.appear = 0
   soul.hasAngle = false
   soul.trail = [soul.x, soul.y, soul.z]
-  // Cheerful arc: mostly up, a little sideways — like a wink, not a goodbye.
   const fling = 0.7 + Math.random() * 0.6
   soul.vx = (Math.random() - 0.5) * 3.2 * fling
   soul.vy = (10.5 + Math.random() * 4.5) * fling
   soul.vz = ((Math.random() - 0.5) * 2.4 - 0.8) * fling
-  const material = soul.sprite.material
-  material.color.set('#fff6d0')
-  material.opacity = 1
-  soul.sprite.scale.setScalar(0.13)
-  soul.sprite.visible = true
+  paintSoul(soul, 1, 1, 1)
 }
 
-function stepStreak(soul: Soul, sprite: THREE.Sprite, dt: number) {
+function stepStreak(soul: Soul, dt: number) {
   soul.streakT += dt
   const u = soul.streakT / STREAK_S
   if (u >= 1) {
@@ -277,18 +314,13 @@ function stepStreak(soul: Soul, sprite: THREE.Sprite, dt: number) {
   soul.x += soul.vx * dt
   soul.y += soul.vy * dt
   soul.z += soul.vz * dt
-  sprite.position.set(soul.x, soul.y, soul.z)
 
   soul.trail.push(soul.x, soul.y, soul.z)
   const max = TRAIL_LEN * 3
   if (soul.trail.length > max) soul.trail.splice(0, soul.trail.length - max)
 
   const life = 1 - smootherstep(u)
-  const material = sprite.material
-  material.opacity = 0.35 + 0.65 * life
-  // Brighten and slim a touch as it becomes a star.
-  sprite.scale.setScalar(0.07 + 0.08 * life)
-  sprite.visible = true
+  paintSoul(soul, 0.35 + 0.65 * life, 0.7 + 0.3 * life, life)
 }
 
 function writeTrails(
@@ -309,15 +341,17 @@ function writeTrails(
     }
   }
   if (!points) return
+  const material = points.material as THREE.PointsMaterial
+  const streak = souls.find((soul) => soul.mode === 'streak')
+  if (streak) {
+    const halo = hslToRgb(tintToGlow(streak.tint))
+    material.color.setRGB(halo.r, halo.g, halo.b)
+  }
   points.geometry.setDrawRange(0, wrote)
   points.geometry.attributes.position.needsUpdate = true
   points.visible = wrote > 0
 }
 
-/**
- * Spread companions around the fire, skipping the camera wedge at +Z.
- * Angle 0 faces the seated viewer.
- */
 function seatAngle(index: number, count: number, turn: number): number {
   const span = Math.PI * 2 - CAMERA_GAP
   const u = (index + 0.5) / Math.max(1, count)
@@ -342,19 +376,36 @@ function seed(id: string): number {
   return (((hash >>> 0) % 1000) / 1000) * 0.35 - 0.175
 }
 
-function starTexture() {
+function softTexture() {
   const canvas = document.createElement('canvas')
   canvas.width = 64
   canvas.height = 64
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Could not draw a companion light')
+  if (!ctx) throw new Error('Could not draw a companion glow')
   const glow = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
-  glow.addColorStop(0, 'rgba(255, 252, 240, 1)')
-  glow.addColorStop(0.12, 'rgba(255, 230, 170, 0.95)')
-  glow.addColorStop(0.35, 'rgba(255, 170, 70, 0.35)')
-  glow.addColorStop(0.7, 'rgba(180, 70, 10, 0.08)')
-  glow.addColorStop(1, 'rgba(40, 10, 0, 0)')
+  glow.addColorStop(0, 'rgba(255, 255, 255, 1)')
+  glow.addColorStop(0.2, 'rgba(255, 255, 255, 0.55)')
+  glow.addColorStop(0.55, 'rgba(255, 255, 255, 0.12)')
+  glow.addColorStop(1, 'rgba(255, 255, 255, 0)')
   ctx.fillStyle = glow
+  ctx.fillRect(0, 0, 64, 64)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  return texture
+}
+
+function hardTexture() {
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Could not draw a companion body')
+  const body = ctx.createRadialGradient(32, 32, 0, 32, 32, 28)
+  body.addColorStop(0, 'rgba(255, 255, 255, 1)')
+  body.addColorStop(0.55, 'rgba(255, 255, 255, 1)')
+  body.addColorStop(0.85, 'rgba(255, 255, 255, 0.35)')
+  body.addColorStop(1, 'rgba(255, 255, 255, 0)')
+  ctx.fillStyle = body
   ctx.fillRect(0, 0, 64, 64)
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace

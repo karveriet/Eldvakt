@@ -27,10 +27,17 @@ export type LeaveResult = { fireId: string; died: boolean }
 export class Room {
   private fires = new Map<string, FireRecord>()
   private seats = new Map<string, string>()
+  /** Anonymous prägel per device — hue/tint in [0, 1], never shown with an id. */
+  private hues = new Map<string, number>()
   private readonly now: () => number
 
   constructor(now: () => number = Date.now) {
     this.now = now
+  }
+
+  setHue(userId: string, hue: number) {
+    if (!Number.isFinite(hue)) return
+    this.hues.set(userId, Math.min(1, Math.max(0, hue)))
   }
 
   light(userId: string, lat: number, lon: number): FireRecord | null {
@@ -147,6 +154,7 @@ export class Room {
         fullUntil: fire.fullUntil,
         emptySince: fire.emptySince,
         seatedCount: fire.seated.length,
+        hues: fire.seated.map((userId) => this.hues.get(userId) ?? 0.08),
         litAt: fire.litAt,
       })
     }

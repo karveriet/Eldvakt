@@ -7,16 +7,20 @@ describe('room', () => {
   it('lets two people share one fire and keeps the clocks honest', () => {
     let now = 5_000_000
     const room = new Room(() => now)
+    room.setHue('host-device', 0.12)
+    room.setHue('guest-device', 0.77)
     const lit = room.light('host-device', 59.329, 18.068)
     assert.ok(lit)
     assert.equal(room.self('host-device').seatedFireId, lit.id)
     assert.equal(room.self('host-device').hostedFireId, lit.id)
     assert.equal(room.publicFires()[0].seatedCount, 1)
+    assert.deepEqual(room.publicFires()[0].hues, [0.12])
     assert.equal('hostId' in room.publicFires()[0], false)
 
     const sat = room.sit('guest-device', lit.id)
     assert.ok(sat)
     assert.equal(sat.seated.length, 2)
+    assert.deepEqual(room.publicFires()[0].hues, [0.12, 0.77])
     assert.equal(sat.burnEndsAt - now, HOUR_MS)
 
     now += 20 * 60 * 1000

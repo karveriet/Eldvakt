@@ -29,6 +29,7 @@
     "src/geo/sphere.test.ts",
     "src/geo/display.ts",
     "src/geo/display.test.ts",
-    "src/shared/**/*.ts"
+    "src/shared/**/*.ts",
+    "src/character/tint.ts"
   ]
 }

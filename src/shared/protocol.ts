@@ -5,6 +5,8 @@ export type PublicFire = ClockFields & {
   lat: number
   lon: number
   seatedCount: number
+  /** Anonymous tints for whoever is seated, in seat order. No ids. */
+  hues: number[]
   litAt: number
 }
 
@@ -24,7 +26,7 @@ export type Happened =
   | { kind: 'greet'; fireId: string; intensity: number }
 
 export type ClientMessage =
-  | { type: 'hello'; id: string }
+  | { type: 'hello'; id: string; hue?: number }
   | { type: 'light'; lat: number; lon: number }
   | { type: 'sit'; fireId: string }
   | { type: 'leave' }

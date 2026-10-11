@@ -134,3 +134,153 @@ canvas {
     height: 62px;
   }
 }
+
+/* First-visit character tint — quiet prägel, almost no words. */
+.tint-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  padding: 32px 24px calc(32px + env(safe-area-inset-bottom));
+  background: #05060a;
+}
+
+.tint-sky {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 120%, rgba(80, 40, 12, 0.35), transparent 55%),
+    radial-gradient(circle at 20% 18%, rgba(255, 255, 255, 0.08) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 70% 30%, rgba(255, 255, 255, 0.07) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 40% 60%, rgba(255, 255, 255, 0.05) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 85% 70%, rgba(255, 255, 255, 0.06) 0 1px, transparent 1.5px);
+}
+
+.tint-preview {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: grid;
+  place-items: center;
+}
+
+.tint-glow,
+.tint-body {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.tint-glow {
+  width: 110px;
+  height: 110px;
+  background: radial-gradient(circle, var(--glow) 0%, transparent 68%);
+  filter: blur(1px);
+  opacity: 0.95;
+}
+
+.tint-body {
+  width: 34px;
+  height: 34px;
+  background: var(--body);
+  box-shadow: 0 0 18px color-mix(in oklab, var(--glow) 55%, transparent);
+}
+
+.tint-slider {
+  position: relative;
+  width: min(420px, 86vw);
+  height: 44px;
+  display: grid;
+  place-items: center;
+}
+
+.tint-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    #0a0a0a 0%,
+    #c0392b 12%,
+    #e67e22 24%,
+    #f1c40f 36%,
+    #2ecc71 48%,
+    #3498db 60%,
+    #9b59b6 72%,
+    #e84393 84%,
+    #f5f5f5 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(240, 194, 122, 0.2);
+  opacity: 0.92;
+}
+
+.tint-slider input[type='range'] {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tint-slider input[type='range']::-webkit-slider-runnable-track {
+  height: 14px;
+  background: transparent;
+}
+
+.tint-slider input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -7px;
+  border-radius: 50%;
+  border: 1px solid rgba(240, 194, 122, 0.55);
+  background: rgba(16, 9, 6, 0.88);
+  box-shadow: 0 0 0 4px rgba(16, 9, 6, 0.35), 0 0 16px rgba(240, 176, 80, 0.35);
+}
+
+.tint-slider input[type='range']::-moz-range-track {
+  height: 14px;
+  background: transparent;
+  border: none;
+}
+
+.tint-slider input[type='range']::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(240, 194, 122, 0.55);
+  background: rgba(16, 9, 6, 0.88);
+  box-shadow: 0 0 0 4px rgba(16, 9, 6, 0.35), 0 0 16px rgba(240, 176, 80, 0.35);
+}
+
+.tint-go {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 1px solid rgba(240, 194, 122, 0.38);
+  background: var(--ink);
+  color: var(--gold);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 22px rgba(180, 80, 16, 0.16);
+}
+
+.tint-go svg {
+  width: 28px;
+  height: 28px;
+}
+
+.tint-go:active {
+  transform: scale(0.96);
+}

@@ -3,6 +3,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocket, WebSocketServer } from 'ws'
+import { sanitizeTint } from '../src/character/tint.ts'
 import { ID_PATTERN, type ClientMessage, type Happened, type ServerMessage } from '../src/shared/protocol.ts'
 import { Room } from './room.ts'
 
@@ -41,10 +42,14 @@ sockets.on('connection', (socket) => {
     if (message.type === 'hello') {
       if (!ID_PATTERN.test(message.id)) return
       clientId = message.id
+      const hue = sanitizeTint(message.hue)
+      if (hue != null) room.setHue(clientId, hue)
       const previous = clients.get(clientId)
       clients.set(clientId, { id: clientId, socket })
       if (previous && previous.socket !== socket) previous.socket.close()
       send(socket, worldFor(clientId))
+      // Hue can change who already sits looks like — refresh peers.
+      if (hue != null) broadcast()
       return
     }
 

@@ -81,7 +81,7 @@ export function bootKonamiVisitor() {
     whisper('en gäst är på väg')
 
     ws.addEventListener('open', () => {
-      ws.send(JSON.stringify({ type: 'hello', id }))
+      ws.send(JSON.stringify({ type: 'hello', id, hue: Math.random() }))
     })
 
     ws.addEventListener('message', (event) => {

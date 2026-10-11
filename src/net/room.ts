@@ -1,4 +1,5 @@
 import { hearthAudio, pulse } from '../audio/hearth.ts'
+import { characterTint } from '../character/tint.ts'
 import { deviceId } from '../identity.ts'
 import type {
   ClientMessage,
@@ -74,7 +75,9 @@ function open() {
   socket = next
   next.addEventListener('open', () => {
     backoff = 600
-    next.send(JSON.stringify({ type: 'hello', id: deviceId() } satisfies ClientMessage))
+    next.send(
+      JSON.stringify({ type: 'hello', id: deviceId(), hue: characterTint() } satisfies ClientMessage),
+    )
     for (const message of queue.splice(0)) next.send(JSON.stringify(message))
   })
   next.addEventListener('message', (event) => {
