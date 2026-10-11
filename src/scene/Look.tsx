@@ -5,6 +5,7 @@ import { getRoomSnapshot, send } from '../net/room.ts'
 import { approachCluster } from './approach.ts'
 import { gesture } from './gesture.ts'
 import { pickTargets } from './hearth-layer.ts'
+import { LOCAL_AT } from '../geo/seat.ts'
 import { noteDrag } from './motion.ts'
 import { getView, nudge, zoomBy } from './view-store.ts'
 
