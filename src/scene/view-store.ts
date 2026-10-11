@@ -43,6 +43,8 @@ let spinAxis: { x: number; y: number; z: number } | null = null
 let spinSpeed = 0
 /** Authoritative look direction while coasting (avoids lat/lon pole jitter). */
 let spinPos: { x: number; y: number; z: number } | null = null
+/** Signed roll coast around the look radial (deg/s). Same friction idea as flick. */
+let twistSpeed = 0
 let lastTick: number | null = null
 /** Parallel-transported screen-right; never re-derived from world-up mid-gesture. */
 let lastRight = { x: 0, y: 0, z: 1 }
@@ -204,6 +206,7 @@ export function stopOrbitSpin() {
   spinAxis = null
   spinSpeed = 0
   spinPos = null
+  twistSpeed = 0
 }
 
 /** Full reset (tests / travel). Clears the camera frame too. */
@@ -257,6 +260,35 @@ export function twistOrbit(degrees: number) {
   if (state.traveling || state.seat >= LOCAL_AT) return
   if (!Number.isFinite(degrees) || Math.abs(degrees) < 1e-6) return
   stopOrbitSpin()
+  applyTwistDegrees(degrees)
+}
+
+/** Release a coasting roll after a two-finger twist (degrees/second, signed). */
+export function flingTwist(degPerSec: number) {
+  if (state.traveling || state.seat >= LOCAL_AT) return
+  if (!Number.isFinite(degPerSec)) {
+    twistSpeed = 0
+    return
+  }
+  const speed = Math.abs(degPerSec)
+  if (speed < FLING_MIN) {
+    twistSpeed = 0
+    return
+  }
+  // Stop look-point coast; keep the roll going around the current radial.
+  spinAxis = null
+  spinSpeed = 0
+  spinPos = null
+  const scale = Math.min(1, FLING_MAX / speed)
+  twistSpeed = degPerSec * scale
+  const pos = latLonToVector(state.lat, state.lon, 1)
+  const { right, up } = orbitFrame(pos)
+  lastRight = right
+  orbitUp = up
+  haveRight = true
+}
+
+function applyTwistDegrees(degrees: number) {
   const pos = latLonToVector(state.lat, state.lon, 1)
   const { right } = orbitFrame(pos)
   const angle = (degrees * Math.PI) / 180
@@ -271,6 +303,17 @@ export function tickView(now: number) {
   const dt =
     lastTick == null ? 0 : Math.min(0.05, Math.max(0, (now - lastTick) / 1000))
   lastTick = now
+
+  if (
+    dt > 0 &&
+    !state.traveling &&
+    state.seat < LOCAL_AT &&
+    Math.abs(twistSpeed) > SPIN_STOP
+  ) {
+    applyTwistDegrees(twistSpeed * dt)
+    twistSpeed *= Math.exp(-SPIN_DECAY * dt)
+    if (Math.abs(twistSpeed) < SPIN_STOP) twistSpeed = 0
+  }
 
   if (
     dt > 0 &&

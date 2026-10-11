@@ -6,6 +6,7 @@ import { VIEW_FAR } from '../fire/view-distance.ts'
 import {
   beginOrbitGrab,
   flingOrbit,
+  flingTwist,
   getView,
   nudge,
   resetOrbitFrame,
@@ -196,5 +197,34 @@ describe('orbit view', () => {
       before.orbitUp!.y * after.orbitUp!.y +
       before.orbitUp!.z * after.orbitUp!.z
     assert.ok(d > 0.98, `full turn should restore camera-up: dot=${d}`)
+  })
+
+  it('coasts a twist release then settles without moving the look point', () => {
+    hardLook(12, -25)
+    nudge(0.01, 0)
+    const start = getView()
+    assert.ok(start.orbitUp)
+    flingTwist(500)
+    const t0 = 6_000_000
+    tickView(t0)
+    tickView(t0 + 32)
+    const mid = getView()
+    assert.ok(Math.abs(mid.lat - start.lat) < 1e-9)
+    assert.ok(Math.abs(normalizeLon(mid.lon - start.lon)) < 1e-9)
+    assert.ok(mid.orbitUp)
+    const midDot =
+      start.orbitUp!.x * mid.orbitUp!.x +
+      start.orbitUp!.y * mid.orbitUp!.y +
+      start.orbitUp!.z * mid.orbitUp!.z
+    assert.ok(midDot < 0.999, `twist coast did not roll: dot=${midDot}`)
+
+    for (let i = 1; i <= 240; i++) tickView(t0 + 32 + i * 16)
+    const settled = getView()
+    const up = settled.orbitUp!
+    tickView(t0 + 32 + 241 * 16)
+    const later = getView().orbitUp!
+    const d = up.x * later.x + up.y * later.y + up.z * later.z
+    assert.ok(d > 0.999999, `twist coast did not settle: dot=${d}`)
+    assert.ok(Math.abs(getView().lat - start.lat) < 1e-9)
   })
 })

@@ -10,6 +10,7 @@ import { noteDrag } from './motion.ts'
 import {
   beginOrbitGrab,
   flingOrbit,
+  flingTwist,
   getView,
   nudge,
   stopOrbitSpin,
@@ -34,8 +35,10 @@ export function Look() {
     let pinchAngle = Number.NaN
     const pinches = new Map<number, { x: number; y: number }>()
     let lastMoveAt = 0
+    let lastTwistAt = 0
     let velLat = 0
     let velLon = 0
+    let velTwist = 0
 
     const twoFinger = () => {
       const points = [...pinches.values()]
@@ -80,6 +83,8 @@ export function Look() {
         const pair = twoFinger()
         pinchDist = pair?.dist ?? 0
         pinchAngle = pair?.angle ?? Number.NaN
+        lastTwistAt = performance.now()
+        velTwist = 0
         return
       }
       down = { x: event.clientX, y: event.clientY, pointerId: event.pointerId }
@@ -117,11 +122,15 @@ export function Look() {
           let delta = pair.angle - pinchAngle
           if (delta > Math.PI) delta -= Math.PI * 2
           if (delta < -Math.PI) delta += Math.PI * 2
-          twistOrbit((delta * 180) / Math.PI)
+          const deg = (delta * 180) / Math.PI
+          const now = performance.now()
+          const dt = Math.max(1 / 240, (now - lastTwistAt) / 1000)
+          twistOrbit(deg)
+          if (dt < 0.08) velTwist = velTwist * 0.35 + (deg / dt) * 0.65
+          lastTwistAt = now
         }
         pinchDist = pair.dist
         pinchAngle = pair.angle
-        stopOrbitSpin()
         noteDrag()
         return
       }
@@ -159,10 +168,17 @@ export function Look() {
     }
 
     const onUp = (event: PointerEvent) => {
+      const hadTwo = pinches.size >= 2
       pinches.delete(event.pointerId)
-      if (pinches.size < 2) {
+      if (hadTwo && pinches.size < 2) {
+        const free = !getRoomSnapshot().self.seatedFireId && getView().seat < LOCAL_AT
+        if (free) {
+          const age = performance.now() - lastTwistAt
+          if (age < 80) flingTwist(velTwist)
+        }
         pinchDist = 0
         pinchAngle = Number.NaN
+        velTwist = 0
       }
       if (!down || event.pointerId !== down.pointerId) return
       if (holding && gesture.holdFireId) {
