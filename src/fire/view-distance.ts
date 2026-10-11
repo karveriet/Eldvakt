@@ -13,8 +13,10 @@ export const VIEW_MIN = 1 + VIEW_GROUND_M / EARTH_RADIUS_M
 export const VIEW_MAX = 4.6
 /** Pinch past this onto a nearby fire hands off to the seat journey. */
 export const VIEW_SIT_ZOOM = VIEW_ARRIVE
-/** Sidereal idle turn only while the whole night globe still fills the view. */
+/** Idle turn only while the whole night globe still fills the view. */
 export const VIEW_WHOLE = VIEW_FAR - 0.35
+/** Naked-eye whole-globe spin: one full turn per minute (sky stays on real time). */
+export const GLOBE_SPIN_DEG_PER_SEC = 360 / 60
 /**
  * Below this altitude (Earth radii), the scene origin rebases onto the
  * camera so meter-scale height stays precise in the GPU.

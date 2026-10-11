@@ -2,6 +2,7 @@ import { normalizeLon } from '../geo/cell.ts'
 import { angularDistance, latLonToVector, slerpLatLon, vectorToLatLon } from '../geo/sphere.ts'
 import { LOCAL_AT } from '../geo/seat.ts'
 import {
+  GLOBE_SPIN_DEG_PER_SEC,
   smootherstep,
   travelSeconds,
   VIEW_ARRIVE,
@@ -11,7 +12,6 @@ import {
   VIEW_SIT_ZOOM,
   VIEW_WHOLE,
 } from '../fire/view-distance.ts'
-import { SIDEREAL_DEG_PER_SEC } from '../sky/place.ts'
 
 export type View = { lat: number; lon: number; distance: number }
 
@@ -57,7 +57,7 @@ let haveRight = false
  * re-snap to world-north — that snap is what makes a pole-crossing flick reverse.
  */
 let orbitUp: { x: number; y: number; z: number } | null = null
-/** True while a finger is down on the orbit view — sidereal turn waits. */
+/** True while a finger is down on the orbit view — idle globe spin waits. */
 let orbitHeld = false
 
 /** Exponential friction; higher = stops sooner. */
@@ -248,7 +248,7 @@ export function beginOrbitGrab() {
   haveRight = true
 }
 
-/** Finger lifted — sidereal turn may resume once coasting also settles. */
+/** Finger lifted — idle globe spin may resume once coasting also settles. */
 export function releaseOrbitGrab() {
   orbitHeld = false
 }
@@ -369,9 +369,9 @@ export function tickView(now: number) {
     if (spinSpeed < SPIN_STOP) stopOrbitSpin()
   }
 
-  // Whole-globe idle: real sidereal turn (west→east). Pauses for drag/coast/close-up.
-  if (dt > 0 && canSiderealTurn()) {
-    applySiderealTurn(SIDEREAL_DEG_PER_SEC * dt)
+  // Whole-globe idle: visible west→east spin (1 rev/min). Sky stays on real time.
+  if (dt > 0 && canGlobeSpin()) {
+    applyGlobeSpin(GLOBE_SPIN_DEG_PER_SEC * dt)
   }
 
   const anim = state.anim
@@ -395,7 +395,7 @@ export function tickView(now: number) {
   }
 }
 
-function canSiderealTurn() {
+function canGlobeSpin() {
   if (state.traveling || orbitHeld) return false
   if (state.seat > 0.02) return false
   if (state.distance < VIEW_WHOLE) return false
@@ -406,10 +406,10 @@ function canSiderealTurn() {
 
 /**
  * Walk the look point westward so the fixed Earth mesh appears to rotate
- * west→east (counterclockwise from above the north pole). Stars use GMST in
- * the same Earth frame, so the sky stays locked to the ground.
+ * west→east (counterclockwise from above the north pole). The sky keeps
+ * real GMST — it does not spin with this boosted display rate.
  */
-function applySiderealTurn(degrees: number) {
+function applyGlobeSpin(degrees: number) {
   if (!Number.isFinite(degrees) || Math.abs(degrees) < 1e-12) return
   state.lon = normalizeLon(state.lon - degrees)
   if (!orbitUp && !haveRight) return

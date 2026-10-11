@@ -209,7 +209,7 @@ export function Look() {
         velLat = 0
         velLon = 0
       }
-      // Sidereal turn resumes only when every finger is up (and coast has settled).
+      // Idle globe spin resumes only when every finger is up (and coast has settled).
       if (pinches.size === 0) releaseOrbitGrab()
     }
 

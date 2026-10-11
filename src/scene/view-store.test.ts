@@ -2,8 +2,13 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { normalizeLon } from '../geo/cell.ts'
 import { angularDistance } from '../geo/sphere.ts'
-import { VIEW_FAR, VIEW_MAX, VIEW_MIN, VIEW_WHOLE } from '../fire/view-distance.ts'
-import { SIDEREAL_DEG_PER_HOUR, SIDEREAL_DEG_PER_SEC } from '../sky/place.ts'
+import {
+  GLOBE_SPIN_DEG_PER_SEC,
+  VIEW_FAR,
+  VIEW_MAX,
+  VIEW_MIN,
+  VIEW_WHOLE,
+} from '../fire/view-distance.ts'
 import {
   beginOrbitGrab,
   flingOrbit,
@@ -87,10 +92,9 @@ describe('orbit view', () => {
     const settledLon = getView().lon
     tickView(t0 + 32 + 241 * 16)
     assert.ok(Math.abs(getView().lat - settledLat) < 1e-6)
-    // Flick coast is done; only the slow sidereal idle turn still walks longitude.
+    // Flick coast is done; only the idle whole-globe spin still walks longitude.
     const dLon = Math.abs(normalizeLon(getView().lon - settledLon))
-    assert.ok(dLon < 0.002)
-    assert.ok(Math.abs(dLon - SIDEREAL_DEG_PER_SEC * 0.016) < 1e-6)
+    assert.ok(Math.abs(dLon - GLOBE_SPIN_DEG_PER_SEC * 0.016) < 1e-6)
   })
 
   it('does not reverse a northward fling when crossing the pole', () => {
@@ -205,17 +209,17 @@ describe('orbit view', () => {
     assert.ok(d > 0.98, `full turn should restore camera-up: dot=${d}`)
   })
 
-  it('turns the whole globe west-to-east at the sidereal rate when idle', () => {
+  it('turns the whole globe west-to-east once per minute when idle', () => {
     hardLook(20, 40)
     assert.ok(getView().distance >= VIEW_WHOLE)
-    assert.ok(SIDEREAL_DEG_PER_HOUR > 15 && SIDEREAL_DEG_PER_HOUR < 15.1)
+    assert.equal(GLOBE_SPIN_DEG_PER_SEC, 6)
     const startLon = getView().lon
     const t0 = 8_000_000
     tickView(t0)
-    const seconds = 120
+    const seconds = 10
     for (let i = 1; i <= seconds * 20; i++) tickView(t0 + i * 50)
     const turned = normalizeLon(startLon - getView().lon)
-    const expect = SIDEREAL_DEG_PER_SEC * seconds
+    const expect = GLOBE_SPIN_DEG_PER_SEC * seconds
     assert.ok(Math.abs(turned - expect) < 0.05, `turned ${turned}, expect ${expect}`)
   })
 
